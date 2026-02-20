@@ -574,9 +574,10 @@
 
         function renderNode(treeData, itemName, requiredRate, flowTotals, depth, isLast = true, prefix = "") {
             const connector = depth === 0 ? "" : (isLast ? "└─ " : "├─ ");
+            // This vertical line needs to continue down through the IN/OUT labels
             const newPrefix = depth === 0 ? "" : prefix + (isLast ? "&nbsp;&nbsp;&nbsp;&nbsp;" : "│&nbsp;&nbsp;&nbsp;");
+            const inPrefix = depth === 0 ? "" : prefix + (isLast ? "&nbsp;&nbsp;&nbsp;" : "│&nbsp;&nbsp;");
 
-            // Get the toggle state
             const isAdvanced = document.getElementById('advancedToggle').checked;
 
             if (!treeData[itemName]) {
@@ -588,11 +589,9 @@
                 }
                 const color = isByproduct ? "var(--secondary)" : "#3498db";
                 const label = isByproduct ? "RECYCLED" : "RAW";
-
-                // Conditional label for RAW/RECYCLED
                 const displayVal = isAdvanced ? `${requiredRate.toFixed(3)} ${itemName}/s` : itemName;
 
-                return `<div style="font-family: monospace; white-space: nowrap; margin-bottom: 2px;">
+                return `<div style="font-family: monospace; white-space: nowrap; margin-bottom: 4px; font-size: 18px">
                     <span style="color: #666;">${prefix}${connector}</span>
                     <span style="color:${color};">[${label}] ${displayVal}</span>
                 </div>`;
@@ -606,29 +605,34 @@
                 let outputStrings = [];
                 for (let out in node.allOutputs) {
                     const totalRate = (node.allOutputs[out] * node.machinesCount * branchShare).toFixed(3);
-                    // Toggle Logic: Show rate or just the item name
                     outputStrings.push(isAdvanced ? `${totalRate} ${out}/s` : out);
                 }
 
                 let inputStrings = [];
                 node.inputs.forEach(input => {
-                    // Toggle Logic: Show rate or just the item name
                     inputStrings.push(isAdvanced ? `${input.rate.toFixed(3)} ${input.itemName}/s` : input.itemName);
                 });
 
+                // MAIN MACHINE LINE
                 html += `
-        <div style="font-family: monospace; white-space: nowrap; margin-bottom: 4px; font-size: 18px">
-            <span style="color: #666;">${prefix}${connector}</span>
-            <b style="color:var(--accent)">${localMachines}x</b> <b style="color:var(--text)">${node.machine.toUpperCase()}</b>
-            <div style="margin-left: ${depth === 0 ? 0 : 25}px; font-size: 0.9em; opacity: 0.9;">
-                <span style="color: #666;">${depth === 0 ? "" : newPrefix}</span>
-                <span style="color: var(--success); font-weight: 900;">OUT:</span> ${outputStrings.join(', ')}
-            </div>
-            <div style="margin-left: ${depth === 0 ? 0 : 25}px; font-size: 0.9em; opacity: 0.9;">
-                <span style="color: #666;">${depth === 0 ? "" : newPrefix}</span>
-                <span style="color: var(--danger); font-weight: 900;">IN :</span> ${inputStrings.length ? inputStrings.join(', ') : 'NONE'}
-            </div>
-        </div>`;
+                <div style="font-family: monospace; white-space: nowrap; margin-bottom: 0px; font-size: 18px">
+                    <span style="color: #666;">${prefix}${connector}</span>
+                    <b style="color:var(--accent)">${localMachines}x</b> <b style="color:var(--text)">${node.machine.toUpperCase()}</b>
+                </div>`;
+
+                // OUTPUT LINE (Uses newPrefix to keep the vertical line connected)
+                html += `
+                <div style="font-family: monospace; white-space: nowrap; margin-bottom: 0px; font-size: 18px; opacity: 0.9;">
+                    <span style="color: #666;">${inPrefix}</span>
+                    <span style="color: var(--success); font-weight: 900;">│OUT:</span> ${outputStrings.join(', ')}
+                </div>`;
+
+                // INPUT LINE (Uses newPrefix to keep the vertical line connected)
+                html += `
+                <div style="font-family: monospace; white-space: nowrap; margin-bottom: 8px; font-size: 18px; opacity: 0.9;">
+                    <span style="color: #666;">${inPrefix}</span>
+                    <span style="color: var(--danger); font-weight: 900;">│IN :</span> ${inputStrings.length ? inputStrings.join(', ') : 'NONE'}
+                </div>`;
 
                 node.inputs.forEach((input, idx) => {
                     const lastInput = idx === node.inputs.length - 1;
