@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factory Architect</title>
+    <style>
+        :root {
+            --bg: #1f2222;
+            --card: #282828;
+            --text: #ede4bd;
+            --accent: #e4ad2d;
+            --success: #698114;
+            --danger: #b93220;
+            --edit: #5286b9;
+            --secondary: #986073;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+        }
+
+        .card {
+            background: var(--card);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 5px solid var(--accent);
+            position: relative;
+            transition: 0.3s;
+        }
+
+        .card.editing {
+            border-left-color: var(--edit);
+            box-shadow: 0 0 15px rgba(52, 152, 219, 0.3);
+        }
+
+        h2 {
+            margin-top: 0;
+            color: var(--accent);
+        }
+
+        .input-group {
+            margin-bottom: 10px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        input,
+        select,
+        button {
+            padding: 10px;
+            border-radius: 4px;
+            border: none;
+            outline: none;
+        }
+
+        input,
+        select {
+            background: #444;
+            color: white;
+            flex: 1;
+            min-width: 140px;
+        }
+
+        button {
+            cursor: pointer;
+            background: var(--accent);
+            color: white;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.8;
+        }
+
+        .recipe-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .recipe-card {
+            background: #3d3d3d;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 3px solid var(--accent);
+            position: relative;
+            font-size: 0.85em;
+        }
+
+        .prio-tag {
+            font-size: 0.7em;
+            background: #555;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: 5px;
+            vertical-align: middle;
+        }
+
+        .card-controls {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .control-btn {
+            background: none;
+            color: #888;
+            font-size: 1em;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+
+        #results {
+            background: #111;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px dashed var(--success);
+            display: none;
+            margin-top: 20px;
+        }
+
+        .result-item {
+            margin: 8px 0;
+            font-family: 'Courier New', monospace;
+            border-bottom: 1px solid #222;
+            padding-bottom: 4px;
+        }
+
+        .efficiency {
+            font-size: 0.8em;
+            color: #888;
+            margin-left: 10px;
+        }
+
+        .summary-box {
+            background: #222;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            border: 1px solid #444;
+        }
+
+        .utility-btns {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn-small {
+            font-size: 0.8em;
+            flex: 1;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>🏗️ Factory Architect: Empire Edition</h1>
+
+        <div class="card" id="inputCard">
+            <h2 id="formTitle">1. Add Machine Recipe</h2>
+            <input type="hidden" id="editId">
+            <div class="input-group">
+                <input type="text" id="mName" autocomplete="off" placeholder="Machine Name">
+                <input type="number" id="mTime" autocomplete="off" placeholder="Process Time (s)">
+                <input type="number" id="mPower" autocomplete="off" placeholder="Power (KW)">
+                <input type="number" id="mCost" autocomplete="off" placeholder="Build Cost ($)">
+                <select id="mPrio">
+                    <option value="2">Priority 2 (Primary Source)</option>
+                    <option value="1">Priority 1 (Byproduct/Secondary)</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <input type="text" id="mInputs" autocomplete="off" placeholder="Inputs (e.g. 2 coal, 6 water)">
+                <input type="text" id="mOutputs" autocomplete="off" placeholder="Outputs (e.g. 80 pellets)">
+            </div>
+            <button id="saveBtn" onclick="addRecipe()" style="width: 100%;">💾 Save Machine</button>
+
+            <div id="recipeDisplay" class="recipe-grid"></div>
+
+            <div class="utility-btns">
+                <button class="btn-small" style="background: var(--secondary);" onclick="exportRecipes()">📤 Export
+                    All</button>
+                <button class="btn-small" style="background: var(--edit);"
+                    onclick="document.getElementById('fileInput').click()">📥 Import File</button>
+                <button class="btn-small" style="background: var(--danger);" onclick="clearStorage()">🗑️ Wipe
+                    All</button>
+                <input type="file" id="fileInput" style="display:none" accept=".json" onchange="importRecipes(event)">
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>2. Plan Production</h2>
+            <div class="input-group">
+                <input type="text" id="targetItem" autocomplete="off" placeholder="Target Item">
+                <input type="number" id="targetQty" autocomplete="off" placeholder="Quantity">
+                <input type="number" id="targetTime" autocomplete="off" placeholder="Over Time (s)">
+                <input type="number" id="currentBank" autocomplete="off" placeholder="Current Bank Balance" value="30000000">
+            </div>
+            <button onclick="calculate()" style="background: var(--success); width: 100%; font-size: 1.1em;">🚀 Run
+                Simulation</button>
+        </div>
+
+        <div id="results">
+            <h2 style="color: var(--success);">📊 Deployment Blueprint</h2>
+            <div id="machineList"></div>
+            <div id="rawList"></div>
+            <div id="summaryList" class="summary-box"></div>
+        </div>
+    </div>
+
+    <script>
+        // Changed to Array for multiple machines with same name
+        let recipes = JSON.parse(localStorage.getItem('factoryRecipes')) || [];
+        displayRecipes();
+
+        function addRecipe() {
+            const id = document.getElementById('editId').value || Date.now();
+            const name = document.getElementById('mName').value.trim();
+            const time = parseFloat(document.getElementById('mTime').value);
+            const pwr = parseFloat(document.getElementById('mPower').value) || 0;
+            const cost = parseFloat(document.getElementById('mCost').value) || 0;
+            const prio = parseInt(document.getElementById('mPrio').value);
+            const inStr = document.getElementById('mInputs').value;
+            const outStr = document.getElementById('mOutputs').value;
+
+            if (!name || !time || !outStr) return alert("Missing Info!");
+
+            const recipeData = {
+                id: id,
+                name: name,
+                inputs: parseItems(inStr, time),
+                outputs: parseItems(outStr, time),
+                origTime: time,
+                power: pwr,
+                cost: cost,
+                priority: prio,
+                rawInputString: inStr,
+                rawOutputString: outStr
+            };
+
+            const existingIdx = recipes.findIndex(r => r.id == id);
+            if (existingIdx > -1) {
+                recipes[existingIdx] = recipeData;
+            } else {
+                recipes.push(recipeData);
+            }
+
+            localStorage.setItem('factoryRecipes', JSON.stringify(recipes));
+            resetForm();
+            displayRecipes();
+        }
+
+        function editRecipe(id) {
+            const r = recipes.find(rec => rec.id == id);
+            if (!r) return;
+            document.getElementById('editId').value = r.id;
+            document.getElementById('mName').value = r.name;
+            document.getElementById('mTime').value = r.origTime;
+            document.getElementById('mPower').value = r.power;
+            document.getElementById('mCost').value = r.cost;
+            document.getElementById('mPrio').value = r.priority || 2;
+            document.getElementById('mInputs').value = r.rawInputString;
+            document.getElementById('mOutputs').value = r.rawOutputString;
+            document.getElementById('inputCard').classList.add('editing');
+            document.getElementById('formTitle').innerText = "✏️ Editing: " + r.name;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function resetForm() {
+            ['mName', 'mTime', 'mPower', 'mCost', 'mInputs', 'mOutputs', 'editId'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('mPrio').value = "2";
+            document.getElementById('inputCard').classList.remove('editing');
+            document.getElementById('formTitle').innerText = "1. Add Machine Recipe";
+        }
+
+        function parseItems(str, time) {
+            const obj = {};
+            if (!str) return obj;
+            str.split(',').forEach(p => {
+                const parts = p.trim().split(' ');
+                const qty = parseFloat(parts[0]);
+                const item = parts.slice(1).join(' ').toLowerCase().trim();
+                if (item) obj[item] = qty / time;
+            });
+            return obj;
+        }
+
+        function displayRecipes() {
+            const div = document.getElementById('recipeDisplay');
+            div.innerHTML = "";
+            recipes.forEach(r => {
+                const card = document.createElement('div');
+                card.className = "recipe-card";
+                if (r.priority == 1) card.style.borderLeftColor = "var(--success)";
+                card.innerHTML = `
+                <div class="card-controls">
+                    <span class="control-btn" onclick="editRecipe('${r.id}')">✏️</span>
+                    <span class="control-btn" onclick="deleteRecipe('${r.id}')">×</span>
+                </div>
+                <strong>${r.name.toUpperCase()}</strong> <span class="prio-tag">P${r.priority}</span><br>
+                <div style="color:#aaa; margin-top:5px;">
+                    📥 Needs: ${Object.keys(r.inputs).join(', ') || 'None'}<br>
+                    📤 Makes: ${Object.keys(r.outputs).join(', ')}<br>
+                    💰 $${(r.cost || 0).toLocaleString()} | ⚡ ${r.power}KW
+                </div>`;
+                div.appendChild(card);
+            });
+        }
+
+        function deleteRecipe(id) {
+            if (confirm("Delete this recipe?")) {
+                recipes = recipes.filter(r => r.id != id);
+                localStorage.setItem('factoryRecipes', JSON.stringify(recipes));
+                displayRecipes();
+            }
+        }
+
+        function clearStorage() { if (confirm("Wipe all recipes?")) { localStorage.clear(); recipes = []; displayRecipes(); } }
+
+        function exportRecipes() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(recipes, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "factory_recipes.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function importRecipes(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    // Handle both old object format and new array format for backward compatibility
+                    if (Array.isArray(imported)) {
+                        recipes = [...recipes, ...imported];
+                    } else {
+                        for (let name in imported) {
+                            imported[name].id = Date.now() + Math.random();
+                            imported[name].name = name;
+                            recipes.push(imported[name]);
+                        }
+                    }
+                    localStorage.setItem('factoryRecipes', JSON.stringify(recipes));
+                    displayRecipes();
+                    alert("Recipes imported!");
+                } catch (err) { alert("Error reading JSON file."); }
+            };
+            reader.readAsText(file);
+        }
+
+        function findAllProducers(item) {
+            const search = item.toLowerCase().trim();
+            // Returns all matches from the array
+            return recipes.filter(r => r.outputs[search]).map(r => ({
+                machine: r.name,
+                recipeId: r.id,
+                rate: r.outputs[search],
+                priority: r.priority || 2,
+                fullRecipe: r
+            }));
+        }
+
+        function calculate() {
+            const target = document.getElementById('targetItem').value.toLowerCase().trim();
+            const qty = parseFloat(document.getElementById('targetQty').value);
+            const time = parseFloat(document.getElementById('targetTime').value);
+
+            if (!findAllProducers(target).length) return alert("No recipe for " + target);
+
+            let totalPwr = 0, totalCost = 0;
+            let pending = { [target]: qty / time };
+            let flowTotals = { [target]: qty / time };
+            let bill = {};
+            let usage = {};
+            let toProcess = [target];
+
+            // EPSILON: Prevents 1.00000000000001 from becoming 2
+            const EPSILON = 1e-9;
+
+            while (toProcess.length > 0) {
+                const item = toProcess.shift();
+                let amountNeeded = pending[item];
+
+                if (amountNeeded <= EPSILON) continue;
+
+                pending[item] = 0;
+
+                let producers = findAllProducers(item).sort((a, b) => a.priority - b.priority);
+
+                producers.forEach(p => {
+                    if (amountNeeded <= EPSILON) return;
+
+                    let amountToTake = amountNeeded;
+
+                    // PRECISION FIX: Subtract epsilon before ceiling to stop ghost machines
+                    const count = Math.ceil((amountToTake / p.rate) - EPSILON);
+
+                    bill[p.recipeId] = (bill[p.recipeId] || 0) + count;
+                    usage[p.recipeId] = (usage[p.recipeId] || 0) + amountToTake;
+
+                    totalPwr += (p.fullRecipe.power || 0) * count;
+                    totalCost += (p.fullRecipe.cost || 0) * count;
+
+                    for (let input in p.fullRecipe.inputs) {
+                        // Calculate input based on exact requirement factor
+                        const inputRate = p.fullRecipe.inputs[input] * (amountToTake / p.rate);
+
+                        pending[input] = (pending[input] || 0) + inputRate;
+                        flowTotals[input] = (flowTotals[input] || 0) + inputRate;
+
+                        if (!toProcess.includes(input)) toProcess.push(input);
+                    }
+
+                    amountNeeded -= amountToTake;
+                });
+            }
+            showUI(bill, usage, flowTotals, totalPwr, totalCost);
+        }
+
+        function showUI(bill, usage, reqs, pwr, cost) {
+            document.getElementById('results').style.display = 'block';
+            const bank = parseFloat(document.getElementById('currentBank').value) || 0;
+            const remaining = bank - cost;
+
+            const mList = document.getElementById('machineList');
+            mList.innerHTML = "<h3>⚙️ BUILD LIST</h3>";
+            for (let rId in bill) {
+                const recipe = recipes.find(r => r.id == rId);
+                const mainOutput = Object.keys(recipe.outputs)[0];
+                const eff = Math.min(100, (usage[rId] / (bill[rId] * recipe.outputs[mainOutput])) * 100).toFixed(1);
+                // We show machine name + its primary output to differentiate same-named machines
+                mList.innerHTML += `<div class="result-item"><b>${bill[rId]}x</b> ${recipe.name.toUpperCase()} (${mainOutput}) <span class="efficiency">${eff}% load</span></div>`;
+            }
+
+            const rList = document.getElementById('rawList');
+            rList.innerHTML = "<h3>📦 RESOURCE FLOW</h3>";
+            for (let item in reqs) {
+                if (!findAllProducers(item).length) {
+                    const val = Math.max(0, reqs[item]);
+                    if (val > 0.00001) {
+                        rList.innerHTML += `<div class="result-item" style="color:#3498db">DRAIN: ${val.toFixed(3)} ${item}/s</div>`;
+                    }
+                }
+            }
+
+            document.getElementById('summaryList').innerHTML = `
+            <div style="color:var(--accent)">⚡ Total Power: <b>${pwr.toLocaleString()} KW</b></div>
+            <div style="color:var(--danger)">💰 Build Cost: <b>$${cost.toLocaleString()}</b></div>
+            <div style="font-size:1.2em; margin-top:10px; color:${remaining >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                🏦 Remaining Bank: <b>$${remaining.toLocaleString()}</b>
+            </div>
+        `;
+        }
+    </script>
+</body>
+
+</html>
