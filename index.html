@@ -394,12 +394,13 @@
 
             let totalPwr = 0, totalCost = 0;
             let pending = { [target]: qty / time };
-            let flowTotals = { [target]: qty / time };
+            let flowTotals = { [target]: qty / time }; // Track total demand globally
             let bill = {};
             let usage = {};
             let toProcess = [target];
             let preferredUsed = new Set();
-            let surplus = {}; // 1. The Byproduct Sink
+            let surplus = {};
+            let treeData = {};
 
             const EPSILON = 1e-9;
 
@@ -407,7 +408,6 @@
                 const item = toProcess.shift();
                 let amountNeeded = pending[item];
 
-                // 2. Consume existing surplus before building new machines
                 if (surplus[item] > 0) {
                     const taken = Math.min(amountNeeded, surplus[item]);
                     amountNeeded -= taken;
@@ -426,84 +426,136 @@
                     let processAmount;
 
                     if (p.preferred > 0 && !preferredUsed.has(p.recipeId)) {
-                        // Handle Forced Manual Limit
                         preferredUsed.add(p.recipeId);
                         machinesNeeded = p.preferred;
                         processAmount = Math.min(amountNeeded, p.preferred * p.rate);
                     } else if (p.preferred === 0) {
-                        // Handle Standard Scaling
                         machinesNeeded = Math.ceil((amountNeeded / p.rate) - EPSILON);
                         processAmount = amountNeeded;
                     } else {
-                        return; // Skip already-exhausted preferred machines
+                        return;
                     }
 
-                    // 3. Update Bill and Power
                     bill[p.recipeId] = (bill[p.recipeId] || 0) + machinesNeeded;
                     usage[p.recipeId] = (usage[p.recipeId] || 0) + processAmount;
                     totalPwr += (p.fullRecipe.power || 0) * machinesNeeded;
                     totalCost += (p.fullRecipe.cost || 0) * machinesNeeded;
 
-                    // 4. Handle ALL outputs (Sinking byproducts into surplus)
+                    if (!treeData[item]) treeData[item] = [];
+                    treeData[item].push({
+                        machine: p.machine,
+                        machinesCount: machinesNeeded,
+                        allOutputs: p.fullRecipe.outputs,
+                        originalRecipe: p.fullRecipe,
+                        outputRate: processAmount,
+                        inputs: []
+                    });
+                    const node = treeData[item][treeData[item].length - 1];
+
                     for (let outItem in p.fullRecipe.outputs) {
                         const totalProduced = p.fullRecipe.outputs[outItem] * machinesNeeded;
                         if (outItem === item) {
-                            // Only add the leftover after satisfying current demand
                             const extra = totalProduced - processAmount;
                             if (extra > EPSILON) surplus[outItem] = (surplus[outItem] || 0) + extra;
                         } else {
-                            // All of the byproduct goes to surplus
                             surplus[outItem] = (surplus[outItem] || 0) + totalProduced;
                         }
                     }
 
-                    // 5. Calculate Input Requirements
                     for (let input in p.fullRecipe.inputs) {
                         const inputRate = p.fullRecipe.inputs[input] * (processAmount / p.rate);
                         pending[input] = (pending[input] || 0) + inputRate;
-                        flowTotals[input] = (flowTotals[input] || 0) + inputRate;
+                        flowTotals[input] = (flowTotals[input] || 0) + inputRate; // Track global demand
+                        node.inputs.push({ itemName: input, rate: inputRate });
                         if (!toProcess.includes(input)) toProcess.push(input);
                     }
-
                     amountNeeded -= processAmount;
                 });
             }
-            showUI(bill, usage, flowTotals, totalPwr, totalCost);
+            showUI(bill, usage, treeData, target, flowTotals, totalPwr, totalCost);
         }
 
-        function showUI(bill, usage, reqs, pwr, cost) {
+        function showUI(bill, usage, treeData, target, flowTotals, pwr, cost) {
             document.getElementById('results').style.display = 'block';
             const bank = parseFloat(document.getElementById('currentBank').value) || 0;
             const remaining = bank - cost;
 
             const mList = document.getElementById('machineList');
-            mList.innerHTML = "<h3>⚙️ BUILD LIST</h3>";
-            for (let rId in bill) {
-                const recipe = recipes.find(r => r.id == rId);
-                const mainOutput = Object.keys(recipe.outputs)[0];
-                const eff = Math.min(100, (usage[rId] / (bill[rId] * recipe.outputs[mainOutput])) * 100).toFixed(1);
-                // We show machine name + its primary output to differentiate same-named machines
-                mList.innerHTML += `<div class="result-item"><b>${bill[rId]}x</b> ${recipe.name.toUpperCase()} (${mainOutput}) <span class="efficiency">${eff}% load</span></div>`;
-            }
+            mList.innerHTML = "<h3>🌲 PRODUCTION TREE (DAG)</h3>";
 
-            const rList = document.getElementById('rawList');
-            rList.innerHTML = "<h3>📦 RESOURCE FLOW</h3>";
-            for (let item in reqs) {
-                if (!findAllProducers(item).length) {
-                    const val = Math.max(0, reqs[item]);
-                    if (val > 0.00001) {
-                        rList.innerHTML += `<div class="result-item" style="color:#3498db">DRAIN: ${val.toFixed(3)} ${item}/s</div>`;
-                    }
-                }
-            }
+            // Pass global flowTotals and initial target rate
+            mList.innerHTML += renderNode(treeData, target, flowTotals[target], flowTotals, 0);
 
             document.getElementById('summaryList').innerHTML = `
-            <div style="color:var(--accent)">⚡ Total Power: <b>${pwr.toLocaleString()} KW</b></div>
-            <div style="color:var(--danger)">💰 Build Cost: <b>$${cost.toLocaleString()}</b></div>
-            <div style="font-size:1.2em; margin-top:10px; color:${remaining >= 0 ? 'var(--success)' : 'var(--danger)'}">
-                🏦 Remaining Bank: <b>$${remaining.toLocaleString()}</b>
-            </div>
-        `;
+                <div style="color:var(--accent)">⚡ Total Power: <b>${pwr.toLocaleString()} KW</b></div>
+                <div style="color:var(--danger)">💰 Build Cost: <b>$${cost.toLocaleString()}</b></div>
+                <div style="font-size:1.2em; margin-top:10px; color:${remaining >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                    🏦 Remaining Bank: <b>$${remaining.toLocaleString()}</b>
+                </div>
+            `;
+        }
+
+        function renderNode(treeData, itemName, requiredRate, flowTotals, depth, isLast = true, prefix = "") {
+            const connector = depth === 0 ? "" : (isLast ? "└─ " : "├─ ");
+            const newPrefix = depth === 0 ? "" : prefix + (isLast ? "&nbsp;&nbsp;&nbsp;&nbsp;" : "│&nbsp;&nbsp;&nbsp;");
+
+            // 1. Handle Raw/Recycled Items (The "Leaf" nodes)
+            if (!treeData[itemName]) {
+                let isByproduct = false;
+                for (let category in treeData) {
+                    treeData[category].forEach(node => {
+                        if (node.allOutputs[itemName] && category !== itemName) isByproduct = true;
+                    });
+                }
+
+                const color = isByproduct ? "var(--secondary)" : "#3498db";
+                const label = isByproduct ? "RECYCLED" : "RAW";
+
+                return `<div style="font-family: monospace; white-space: nowrap; margin-bottom: 2px;">
+                    <span style="color: #666;">${prefix}${connector}</span>
+                    <span style="color:${color};">[${label}] ${requiredRate.toFixed(3)} ${itemName}/s</span>
+                </div>`;
+            }
+
+            let html = "";
+            treeData[itemName].forEach((node) => {
+                const branchShare = requiredRate / flowTotals[itemName];
+                const localMachines = Math.ceil((node.machinesCount * branchShare).toFixed(2));
+
+                // 2. Format Outputs (What this machine gives this branch)
+                let outputStrings = [];
+                for (let out in node.allOutputs) {
+                    const totalRate = (node.allOutputs[out] * node.machinesCount * branchShare).toFixed(3);
+                    outputStrings.push(`${totalRate} ${out}`);
+                }
+
+                // 3. Format Inputs (What this machine needs for this branch)
+                let inputStrings = [];
+                node.inputs.forEach(input => {
+                    inputStrings.push(`${input.rate.toFixed(3)} ${input.itemName}`);
+                });
+
+                // The "Visual Card" for the machine
+                html += `
+                <div style="font-family: monospace; white-space: nowrap; margin-bottom: 4px;">
+                    <span style="color: #666;">${prefix}${connector}</span>
+                    <b style="color:var(--accent)">${localMachines}x</b> <b style="color:var(--text)">${node.machine.toUpperCase()}</b>
+                    <div style="margin-left: ${depth === 0 ? 0 : 25}px; font-size: 0.9em; opacity: 0.9;">
+                        <span style="color: #666;">${depth === 0 ? "" : newPrefix}</span>
+                        <span style="color: var(--success)">OUT:</span> ${outputStrings.join(', ')} /s
+                    </div>
+                    <div style="margin-left: ${depth === 0 ? 0 : 25}px; font-size: 0.9em; opacity: 0.9;">
+                        <span style="color: #666;">${depth === 0 ? "" : newPrefix}</span>
+                        <span style="color: var(--danger)">IN :</span> ${inputStrings.length ? inputStrings.join(', ') + ' /s' : 'NONE'}
+                    </div>
+                </div>`;
+
+                node.inputs.forEach((input, idx) => {
+                    const lastInput = idx === node.inputs.length - 1;
+                    html += renderNode(treeData, input.itemName, input.rate, flowTotals, depth + 1, lastInput, newPrefix);
+                });
+            });
+            return html;
         }
     </script>
 </body>
