@@ -384,6 +384,7 @@
                 fullRecipe: r
             }));
         }
+
         function calculate() {
             const target = document.getElementById('targetItem').value.toLowerCase().trim();
             const qty = parseFloat(document.getElementById('targetQty').value);
@@ -398,74 +399,73 @@
             let usage = {};
             let toProcess = [target];
             let preferredUsed = new Set();
+            let surplus = {}; // 1. The Byproduct Sink
 
-            // EPSILON: Prevents 1.00000000000001 from becoming 2
             const EPSILON = 1e-9;
 
             while (toProcess.length > 0) {
                 const item = toProcess.shift();
                 let amountNeeded = pending[item];
 
-                if (amountNeeded <= EPSILON) continue;
+                // 2. Consume existing surplus before building new machines
+                if (surplus[item] > 0) {
+                    const taken = Math.min(amountNeeded, surplus[item]);
+                    amountNeeded -= taken;
+                    surplus[item] -= taken;
+                }
 
+                if (amountNeeded <= EPSILON) continue;
                 pending[item] = 0;
 
-                let producers = findAllProducers(item).sort((a, b) => {
-                    return (b.preferred || 0) - (a.preferred || 0);
-                });
+                let producers = findAllProducers(item).sort((a, b) => (b.preferred || 0) - (a.preferred || 0));
 
                 producers.forEach(p => {
                     if (amountNeeded <= EPSILON) return;
 
-                    // If machine has preferred count
-                    if (p.preferred > 0) {
+                    let machinesNeeded;
+                    let processAmount;
 
-                        // Only apply once
-                        if (!preferredUsed.has(p.recipeId)) {
-
-                            preferredUsed.add(p.recipeId);
-
-                            const preferredCapacity = p.preferred * p.rate;
-                            const usedAmount = Math.min(amountNeeded, preferredCapacity);
-
-                            bill[p.recipeId] = p.preferred;
-                            usage[p.recipeId] = usedAmount;
-
-                            totalPwr += (p.fullRecipe.power || 0) * p.preferred;
-                            totalCost += (p.fullRecipe.cost || 0) * p.preferred;
-
-                            for (let input in p.fullRecipe.inputs) {
-                                const inputRate = p.fullRecipe.inputs[input] * (usedAmount / p.rate);
-                                pending[input] = (pending[input] || 0) + inputRate;
-                                flowTotals[input] = (flowTotals[input] || 0) + inputRate;
-                                if (!toProcess.includes(input)) toProcess.push(input);
-                            }
-
-                            amountNeeded -= usedAmount;
-                        }
-
-                        // IMPORTANT:
-                        // Never allow preferred machines to enter normal fill
-                        return;
+                    if (p.preferred > 0 && !preferredUsed.has(p.recipeId)) {
+                        // Handle Forced Manual Limit
+                        preferredUsed.add(p.recipeId);
+                        machinesNeeded = p.preferred;
+                        processAmount = Math.min(amountNeeded, p.preferred * p.rate);
+                    } else if (p.preferred === 0) {
+                        // Handle Standard Scaling
+                        machinesNeeded = Math.ceil((amountNeeded / p.rate) - EPSILON);
+                        processAmount = amountNeeded;
+                    } else {
+                        return; // Skip already-exhausted preferred machines
                     }
 
-                    // Normal unlimited machines
-                    const count = Math.ceil((amountNeeded / p.rate) - EPSILON);
+                    // 3. Update Bill and Power
+                    bill[p.recipeId] = (bill[p.recipeId] || 0) + machinesNeeded;
+                    usage[p.recipeId] = (usage[p.recipeId] || 0) + processAmount;
+                    totalPwr += (p.fullRecipe.power || 0) * machinesNeeded;
+                    totalCost += (p.fullRecipe.cost || 0) * machinesNeeded;
 
-                    bill[p.recipeId] = (bill[p.recipeId] || 0) + count;
-                    usage[p.recipeId] = (usage[p.recipeId] || 0) + amountNeeded;
+                    // 4. Handle ALL outputs (Sinking byproducts into surplus)
+                    for (let outItem in p.fullRecipe.outputs) {
+                        const totalProduced = p.fullRecipe.outputs[outItem] * machinesNeeded;
+                        if (outItem === item) {
+                            // Only add the leftover after satisfying current demand
+                            const extra = totalProduced - processAmount;
+                            if (extra > EPSILON) surplus[outItem] = (surplus[outItem] || 0) + extra;
+                        } else {
+                            // All of the byproduct goes to surplus
+                            surplus[outItem] = (surplus[outItem] || 0) + totalProduced;
+                        }
+                    }
 
-                    totalPwr += (p.fullRecipe.power || 0) * count;
-                    totalCost += (p.fullRecipe.cost || 0) * count;
-
+                    // 5. Calculate Input Requirements
                     for (let input in p.fullRecipe.inputs) {
-                        const inputRate = p.fullRecipe.inputs[input] * (amountNeeded / p.rate);
+                        const inputRate = p.fullRecipe.inputs[input] * (processAmount / p.rate);
                         pending[input] = (pending[input] || 0) + inputRate;
                         flowTotals[input] = (flowTotals[input] || 0) + inputRate;
                         if (!toProcess.includes(input)) toProcess.push(input);
                     }
 
-                    amountNeeded = 0;
+                    amountNeeded -= processAmount;
                 });
             }
             showUI(bill, usage, flowTotals, totalPwr, totalCost);
