@@ -10,8 +10,10 @@
         :root {
             --bg: #1f2222;
             --card: #282828;
+            --card-dark: #202020;
             --text: #ede4bd;
-            --accent: #e4ad2d;
+            --grey: #ede4bd2f;
+            --accent: #b16f09;
             --success: #698114;
             --danger: #b93220;
             --edit: #5286b9;
@@ -28,6 +30,10 @@
             align-items: center;
         }
 
+        body::-webkit-scrollbar {
+            display: none;
+        }
+
         .container {
             width: 100%;
             max-width: 900px;
@@ -38,19 +44,19 @@
             padding: 20px;
             border-radius: 8px;
             margin-bottom: 20px;
-            border-left: 5px solid var(--accent);
+            border: 1px solid var(--grey);
             position: relative;
             transition: 0.3s;
         }
 
         .card.editing {
-            border-left-color: var(--edit);
+            border-color: var(--edit);
             box-shadow: 0 0 15px rgba(52, 152, 219, 0.3);
         }
 
         h2 {
             margin-top: 0;
-            color: var(--accent);
+            color: var(--text);
         }
 
         .input-group {
@@ -71,7 +77,7 @@
 
         input,
         select {
-            background: #444;
+            background: var(--card-dark);
             color: white;
             flex: 1;
             min-width: 140px;
@@ -83,6 +89,10 @@
             color: white;
             font-weight: bold;
             transition: 0.2s;
+        }
+
+        #saveBtn.editing {
+            background: var(--edit);
         }
 
         button:hover {
@@ -97,7 +107,7 @@
         }
 
         .recipe-card {
-            background: #3d3d3d;
+            background: var(--card-dark);
             padding: 12px;
             border-radius: 6px;
             border-left: 3px solid var(--accent);
@@ -106,9 +116,9 @@
         }
 
         .prio-tag {
-            font-size: 0.7em;
-            background: #555;
-            padding: 2px 6px;
+            font-size: 0.8em;
+            background: var(--card);
+            padding: 3px 9px;
             border-radius: 10px;
             margin-left: 5px;
             vertical-align: middle;
@@ -126,8 +136,13 @@
             background: none;
             color: #888;
             font-size: 1em;
+            font-weight: 900;
             cursor: pointer;
             border-radius: 3px;
+        }
+
+        .control-btn:hover {
+            color: var(--danger);
         }
 
         #results {
@@ -170,6 +185,12 @@
             font-size: 0.8em;
             flex: 1;
         }
+
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
     </style>
 </head>
 
@@ -183,10 +204,10 @@
             <input type="hidden" id="editId">
             <div class="input-group">
                 <input type="text" id="mName" autocomplete="off" placeholder="Machine Name">
-                <input type="number" id="mTime" autocomplete="off" placeholder="Process Time (s)">
-                <input type="number" id="mPower" autocomplete="off" placeholder="Power (KW)">
-                <input type="number" id="mCost" autocomplete="off" placeholder="Build Cost ($)">
-                <input type="number" id="mPreferred" autocomplete="off" placeholder="Preferred Count (0 = unlimited)"
+                <input type="number" inputmode="numeric" id="mTime" autocomplete="off" placeholder="Process Time (s)">
+                <input type="number" inputmode="numeric" id="mPower" autocomplete="off" placeholder="Power (KW)">
+                <input type="number" inputmode="numeric" id="mCost" autocomplete="off" placeholder="Build Cost ($)">
+                <input type="number" inputmode="numeric" id="mPreferred" autocomplete="off" placeholder="Preferred Count (0 = unlimited)"
                     value="0">
             </div>
             <div class="input-group">
@@ -212,9 +233,9 @@
             <h2>2. Plan Production</h2>
             <div class="input-group">
                 <input type="text" id="targetItem" autocomplete="off" placeholder="Target Item">
-                <input type="number" id="targetQty" autocomplete="off" placeholder="Quantity">
-                <input type="number" id="targetTime" autocomplete="off" placeholder="Over Time (s)">
-                <input type="number" id="currentBank" autocomplete="off" placeholder="Current Bank Balance"
+                <input type="number" inputmode="numeric" id="targetQty" autocomplete="off" placeholder="Quantity">
+                <input type="number" inputmode="numeric" id="targetTime" autocomplete="off" placeholder="Over Time (s)">
+                <input type="number" inputmode="numeric" id="currentBank" autocomplete="off" placeholder="Current Bank Balance"
                     value="30000000">
             </div>
             <button onclick="calculate()" style="background: var(--success); width: 100%; font-size: 1.1em;">🚀 Run
@@ -284,14 +305,16 @@
             document.getElementById('mInputs').value = r.rawInputString;
             document.getElementById('mOutputs').value = r.rawOutputString;
             document.getElementById('inputCard').classList.add('editing');
+            document.getElementById('saveBtn').classList.add('editing');
             document.getElementById('formTitle').innerText = "✏️ Editing: " + r.name;
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
-
+        
         function resetForm() {
             ['mName', 'mTime', 'mPower', 'mCost', 'mInputs', 'mOutputs', 'editId'].forEach(id => document.getElementById(id).value = '');
             document.getElementById('mPrio').value = "2";
             document.getElementById('inputCard').classList.remove('editing');
+            document.getElementById('saveBtn').classList.remove('editing');
             document.getElementById('formTitle').innerText = "1. Add Machine Recipe";
         }
 
@@ -316,7 +339,7 @@
                 card.innerHTML = `
                 <div class="card-controls">
                     <span class="control-btn" onclick="editRecipe('${r.id}')">✏️</span>
-                    <span class="control-btn" onclick="deleteRecipe('${r.id}')">×</span>
+                    <span class="control-btn" onclick="deleteRecipe('${r.id}')">X</span>
                 </div>
                 <strong>${r.name.toUpperCase()}</strong>
                 <span class="prio-tag">Preferred: ${r.preferred || 0}</span><br>
