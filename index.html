@@ -186,10 +186,8 @@
                 <input type="number" id="mTime" autocomplete="off" placeholder="Process Time (s)">
                 <input type="number" id="mPower" autocomplete="off" placeholder="Power (KW)">
                 <input type="number" id="mCost" autocomplete="off" placeholder="Build Cost ($)">
-                <select id="mPrio">
-                    <option value="2">Priority 2 (Primary Source)</option>
-                    <option value="1">Priority 1 (Byproduct/Secondary)</option>
-                </select>
+                <input type="number" id="mPreferred" autocomplete="off" placeholder="Preferred Count (0 = unlimited)"
+                    value="0">
             </div>
             <div class="input-group">
                 <input type="text" id="mInputs" autocomplete="off" placeholder="Inputs (e.g. 2 coal, 6 water)">
@@ -216,7 +214,8 @@
                 <input type="text" id="targetItem" autocomplete="off" placeholder="Target Item">
                 <input type="number" id="targetQty" autocomplete="off" placeholder="Quantity">
                 <input type="number" id="targetTime" autocomplete="off" placeholder="Over Time (s)">
-                <input type="number" id="currentBank" autocomplete="off" placeholder="Current Bank Balance" value="30000000">
+                <input type="number" id="currentBank" autocomplete="off" placeholder="Current Bank Balance"
+                    value="30000000">
             </div>
             <button onclick="calculate()" style="background: var(--success); width: 100%; font-size: 1.1em;">🚀 Run
                 Simulation</button>
@@ -241,7 +240,7 @@
             const time = parseFloat(document.getElementById('mTime').value);
             const pwr = parseFloat(document.getElementById('mPower').value) || 0;
             const cost = parseFloat(document.getElementById('mCost').value) || 0;
-            const prio = parseInt(document.getElementById('mPrio').value);
+            const preferred = parseInt(document.getElementById('mPreferred').value) || 0;
             const inStr = document.getElementById('mInputs').value;
             const outStr = document.getElementById('mOutputs').value;
 
@@ -255,7 +254,7 @@
                 origTime: time,
                 power: pwr,
                 cost: cost,
-                priority: prio,
+                preferred: preferred,
                 rawInputString: inStr,
                 rawOutputString: outStr
             };
@@ -267,6 +266,7 @@
                 recipes.push(recipeData);
             }
 
+            window.location.reload()
             localStorage.setItem('factoryRecipes', JSON.stringify(recipes));
             resetForm();
             displayRecipes();
@@ -280,7 +280,7 @@
             document.getElementById('mTime').value = r.origTime;
             document.getElementById('mPower').value = r.power;
             document.getElementById('mCost').value = r.cost;
-            document.getElementById('mPrio').value = r.priority || 2;
+            document.getElementById('mPreferred').value = r.preferred || 0;
             document.getElementById('mInputs').value = r.rawInputString;
             document.getElementById('mOutputs').value = r.rawOutputString;
             document.getElementById('inputCard').classList.add('editing');
@@ -313,13 +313,13 @@
             recipes.forEach(r => {
                 const card = document.createElement('div');
                 card.className = "recipe-card";
-                if (r.priority == 1) card.style.borderLeftColor = "var(--success)";
                 card.innerHTML = `
                 <div class="card-controls">
                     <span class="control-btn" onclick="editRecipe('${r.id}')">✏️</span>
                     <span class="control-btn" onclick="deleteRecipe('${r.id}')">×</span>
                 </div>
-                <strong>${r.name.toUpperCase()}</strong> <span class="prio-tag">P${r.priority}</span><br>
+                <strong>${r.name.toUpperCase()}</strong>
+                <span class="prio-tag">Preferred: ${r.preferred || 0}</span><br>
                 <div style="color:#aaa; margin-top:5px;">
                     📥 Needs: ${Object.keys(r.inputs).join(', ') || 'None'}<br>
                     📤 Makes: ${Object.keys(r.outputs).join(', ')}<br>
@@ -376,16 +376,14 @@
 
         function findAllProducers(item) {
             const search = item.toLowerCase().trim();
-            // Returns all matches from the array
             return recipes.filter(r => r.outputs[search]).map(r => ({
                 machine: r.name,
                 recipeId: r.id,
                 rate: r.outputs[search],
-                priority: r.priority || 2,
+                preferred: r.preferred || 0,
                 fullRecipe: r
             }));
         }
-
         function calculate() {
             const target = document.getElementById('targetItem').value.toLowerCase().trim();
             const qty = parseFloat(document.getElementById('targetQty').value);
@@ -399,6 +397,7 @@
             let bill = {};
             let usage = {};
             let toProcess = [target];
+            let preferredUsed = new Set();
 
             // EPSILON: Prevents 1.00000000000001 from becoming 2
             const EPSILON = 1e-9;
@@ -411,33 +410,62 @@
 
                 pending[item] = 0;
 
-                let producers = findAllProducers(item).sort((a, b) => a.priority - b.priority);
+                let producers = findAllProducers(item).sort((a, b) => {
+                    return (b.preferred || 0) - (a.preferred || 0);
+                });
 
                 producers.forEach(p => {
                     if (amountNeeded <= EPSILON) return;
 
-                    let amountToTake = amountNeeded;
+                    // If machine has preferred count
+                    if (p.preferred > 0) {
 
-                    // PRECISION FIX: Subtract epsilon before ceiling to stop ghost machines
-                    const count = Math.ceil((amountToTake / p.rate) - EPSILON);
+                        // Only apply once
+                        if (!preferredUsed.has(p.recipeId)) {
+
+                            preferredUsed.add(p.recipeId);
+
+                            const preferredCapacity = p.preferred * p.rate;
+                            const usedAmount = Math.min(amountNeeded, preferredCapacity);
+
+                            bill[p.recipeId] = p.preferred;
+                            usage[p.recipeId] = usedAmount;
+
+                            totalPwr += (p.fullRecipe.power || 0) * p.preferred;
+                            totalCost += (p.fullRecipe.cost || 0) * p.preferred;
+
+                            for (let input in p.fullRecipe.inputs) {
+                                const inputRate = p.fullRecipe.inputs[input] * (usedAmount / p.rate);
+                                pending[input] = (pending[input] || 0) + inputRate;
+                                flowTotals[input] = (flowTotals[input] || 0) + inputRate;
+                                if (!toProcess.includes(input)) toProcess.push(input);
+                            }
+
+                            amountNeeded -= usedAmount;
+                        }
+
+                        // IMPORTANT:
+                        // Never allow preferred machines to enter normal fill
+                        return;
+                    }
+
+                    // Normal unlimited machines
+                    const count = Math.ceil((amountNeeded / p.rate) - EPSILON);
 
                     bill[p.recipeId] = (bill[p.recipeId] || 0) + count;
-                    usage[p.recipeId] = (usage[p.recipeId] || 0) + amountToTake;
+                    usage[p.recipeId] = (usage[p.recipeId] || 0) + amountNeeded;
 
                     totalPwr += (p.fullRecipe.power || 0) * count;
                     totalCost += (p.fullRecipe.cost || 0) * count;
 
                     for (let input in p.fullRecipe.inputs) {
-                        // Calculate input based on exact requirement factor
-                        const inputRate = p.fullRecipe.inputs[input] * (amountToTake / p.rate);
-
+                        const inputRate = p.fullRecipe.inputs[input] * (amountNeeded / p.rate);
                         pending[input] = (pending[input] || 0) + inputRate;
                         flowTotals[input] = (flowTotals[input] || 0) + inputRate;
-
                         if (!toProcess.includes(input)) toProcess.push(input);
                     }
 
-                    amountNeeded -= amountToTake;
+                    amountNeeded = 0;
                 });
             }
             showUI(bill, usage, flowTotals, totalPwr, totalCost);
