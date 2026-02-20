@@ -146,10 +146,10 @@
         }
 
         #results {
-            background: #111;
+            background: var(--card-dark);
             padding: 20px;
             border-radius: 8px;
-            border: 1px dashed var(--success);
+            border: 1px solid var(--success);
             display: none;
             margin-top: 20px;
         }
@@ -191,6 +191,52 @@
             -webkit-appearance: none;
             margin: 0;
         }
+
+        /* Toggle Switch Style */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #444;
+            transition: .4s;
+            border-radius: 20px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: var(--success);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(20px);
+        }
     </style>
 </head>
 
@@ -207,8 +253,8 @@
                 <input type="number" inputmode="numeric" id="mTime" autocomplete="off" placeholder="Process Time (s)">
                 <input type="number" inputmode="numeric" id="mPower" autocomplete="off" placeholder="Power (KW)">
                 <input type="number" inputmode="numeric" id="mCost" autocomplete="off" placeholder="Build Cost ($)">
-                <input type="number" inputmode="numeric" id="mPreferred" autocomplete="off" placeholder="Preferred Count (0 = unlimited)"
-                    value="0">
+                <input type="number" inputmode="numeric" id="mPreferred" autocomplete="off"
+                    placeholder="Preferred Count (0 = unlimited)" value="0">
             </div>
             <div class="input-group">
                 <input type="text" id="mInputs" autocomplete="off" placeholder="Inputs (e.g. 2 coal, 6 water)">
@@ -235,8 +281,8 @@
                 <input type="text" id="targetItem" autocomplete="off" placeholder="Target Item">
                 <input type="number" inputmode="numeric" id="targetQty" autocomplete="off" placeholder="Quantity">
                 <input type="number" inputmode="numeric" id="targetTime" autocomplete="off" placeholder="Over Time (s)">
-                <input type="number" inputmode="numeric" id="currentBank" autocomplete="off" placeholder="Current Bank Balance"
-                    value="30000000">
+                <input type="number" inputmode="numeric" id="currentBank" autocomplete="off"
+                    placeholder="Current Bank Balance" value="30000000">
             </div>
             <button onclick="calculate()" style="background: var(--success); width: 100%; font-size: 1.1em;">🚀 Run
                 Simulation</button>
@@ -244,6 +290,14 @@
 
         <div id="results">
             <h2 style="color: var(--success);">📊 Deployment Blueprint</h2>
+            <div
+                style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-weight: bold; color: var(--text);">
+                <label class="switch">
+                    <input type="checkbox" id="advancedToggle" onchange="calculate()">
+                    <span class="slider"></span>
+                </label>
+                <span>Advanced View (Show Rates)</span>
+            </div>
             <div id="machineList"></div>
             <div id="rawList"></div>
             <div id="summaryList" class="summary-box"></div>
@@ -309,7 +363,7 @@
             document.getElementById('formTitle').innerText = "✏️ Editing: " + r.name;
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
-        
+
         function resetForm() {
             ['mName', 'mTime', 'mPower', 'mCost', 'mInputs', 'mOutputs', 'editId'].forEach(id => document.getElementById(id).value = '');
             document.getElementById('mPrio').value = "2";
@@ -522,7 +576,9 @@
             const connector = depth === 0 ? "" : (isLast ? "└─ " : "├─ ");
             const newPrefix = depth === 0 ? "" : prefix + (isLast ? "&nbsp;&nbsp;&nbsp;&nbsp;" : "│&nbsp;&nbsp;&nbsp;");
 
-            // 1. Handle Raw/Recycled Items (The "Leaf" nodes)
+            // Get the toggle state
+            const isAdvanced = document.getElementById('advancedToggle').checked;
+
             if (!treeData[itemName]) {
                 let isByproduct = false;
                 for (let category in treeData) {
@@ -530,13 +586,15 @@
                         if (node.allOutputs[itemName] && category !== itemName) isByproduct = true;
                     });
                 }
-
                 const color = isByproduct ? "var(--secondary)" : "#3498db";
                 const label = isByproduct ? "RECYCLED" : "RAW";
 
+                // Conditional label for RAW/RECYCLED
+                const displayVal = isAdvanced ? `${requiredRate.toFixed(3)} ${itemName}/s` : itemName;
+
                 return `<div style="font-family: monospace; white-space: nowrap; margin-bottom: 2px;">
                     <span style="color: #666;">${prefix}${connector}</span>
-                    <span style="color:${color};">[${label}] ${requiredRate.toFixed(3)} ${itemName}/s</span>
+                    <span style="color:${color};">[${label}] ${displayVal}</span>
                 </div>`;
             }
 
@@ -545,33 +603,32 @@
                 const branchShare = requiredRate / flowTotals[itemName];
                 const localMachines = Math.ceil((node.machinesCount * branchShare).toFixed(2));
 
-                // 2. Format Outputs (What this machine gives this branch)
                 let outputStrings = [];
                 for (let out in node.allOutputs) {
                     const totalRate = (node.allOutputs[out] * node.machinesCount * branchShare).toFixed(3);
-                    outputStrings.push(`${totalRate} ${out}`);
+                    // Toggle Logic: Show rate or just the item name
+                    outputStrings.push(isAdvanced ? `${totalRate} ${out}/s` : out);
                 }
 
-                // 3. Format Inputs (What this machine needs for this branch)
                 let inputStrings = [];
                 node.inputs.forEach(input => {
-                    inputStrings.push(`${input.rate.toFixed(3)} ${input.itemName}`);
+                    // Toggle Logic: Show rate or just the item name
+                    inputStrings.push(isAdvanced ? `${input.rate.toFixed(3)} ${input.itemName}/s` : input.itemName);
                 });
 
-                // The "Visual Card" for the machine
                 html += `
-                <div style="font-family: monospace; white-space: nowrap; margin-bottom: 4px;">
-                    <span style="color: #666;">${prefix}${connector}</span>
-                    <b style="color:var(--accent)">${localMachines}x</b> <b style="color:var(--text)">${node.machine.toUpperCase()}</b>
-                    <div style="margin-left: ${depth === 0 ? 0 : 25}px; font-size: 0.9em; opacity: 0.9;">
-                        <span style="color: #666;">${depth === 0 ? "" : newPrefix}</span>
-                        <span style="color: var(--success)">OUT:</span> ${outputStrings.join(', ')} /s
-                    </div>
-                    <div style="margin-left: ${depth === 0 ? 0 : 25}px; font-size: 0.9em; opacity: 0.9;">
-                        <span style="color: #666;">${depth === 0 ? "" : newPrefix}</span>
-                        <span style="color: var(--danger)">IN :</span> ${inputStrings.length ? inputStrings.join(', ') + ' /s' : 'NONE'}
-                    </div>
-                </div>`;
+        <div style="font-family: monospace; white-space: nowrap; margin-bottom: 4px; font-size: 18px">
+            <span style="color: #666;">${prefix}${connector}</span>
+            <b style="color:var(--accent)">${localMachines}x</b> <b style="color:var(--text)">${node.machine.toUpperCase()}</b>
+            <div style="margin-left: ${depth === 0 ? 0 : 25}px; font-size: 0.9em; opacity: 0.9;">
+                <span style="color: #666;">${depth === 0 ? "" : newPrefix}</span>
+                <span style="color: var(--success); font-weight: 900;">OUT:</span> ${outputStrings.join(', ')}
+            </div>
+            <div style="margin-left: ${depth === 0 ? 0 : 25}px; font-size: 0.9em; opacity: 0.9;">
+                <span style="color: #666;">${depth === 0 ? "" : newPrefix}</span>
+                <span style="color: var(--danger); font-weight: 900;">IN :</span> ${inputStrings.length ? inputStrings.join(', ') : 'NONE'}
+            </div>
+        </div>`;
 
                 node.inputs.forEach((input, idx) => {
                     const lastInput = idx === node.inputs.length - 1;
