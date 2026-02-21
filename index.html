@@ -600,7 +600,7 @@
             let html = "";
             treeData[itemName].forEach((node) => {
                 const branchShare = requiredRate / flowTotals[itemName];
-                const localMachines = Math.ceil((node.machinesCount * branchShare).toFixed(2));
+                const localMachines = (node.machinesCount * branchShare).toFixed(2);
 
                 let outputStrings = [];
                 for (let out in node.allOutputs) {
@@ -609,9 +609,9 @@
                 }
 
                 let inputStrings = [];
-                node.inputs.forEach(input => {
+                    node.inputs.forEach(input => {
                     inputStrings.push(isAdvanced ? `${input.rate.toFixed(3)} ${input.itemName}/s` : input.itemName);
-                });
+                    });
 
                 // MAIN MACHINE LINE
                 html += `
