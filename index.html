@@ -4,8 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Factory Architect</title>
-    <link rel="icon" href="120px-Induslogo.png">
+    <title>Factory Architect: Group Edition</title>
     <style>
         :root {
             --bg: #1f2222;
@@ -49,14 +48,19 @@
             transition: 0.3s;
         }
 
-        .card.editing {
-            border-color: var(--edit);
-            box-shadow: 0 0 15px rgba(52, 152, 219, 0.3);
+        h1 {
+            margin-bottom: 30px;
+            border-bottom: 2px solid var(--accent);
+            display: inline-block;
+            padding-bottom: 5px;
         }
 
         h2 {
             margin-top: 0;
             color: var(--text);
+            font-size: 1.2em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .input-group {
@@ -75,8 +79,7 @@
             outline: none;
         }
 
-        input,
-        select {
+        input {
             background: var(--card-dark);
             color: white;
             flex: 1;
@@ -91,14 +94,11 @@
             transition: 0.2s;
         }
 
-        #saveBtn.editing {
-            background: var(--edit);
-        }
-
         button:hover {
             opacity: 0.8;
         }
 
+        /* Recipe Grid Styling */
         .recipe-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -115,36 +115,32 @@
             font-size: 0.85em;
         }
 
-        .prio-tag {
-            font-size: 0.8em;
-            background: var(--card);
-            padding: 3px 9px;
-            border-radius: 10px;
-            margin-left: 5px;
-            vertical-align: middle;
-        }
-
-        .card-controls {
+        .control-btn {
             position: absolute;
             top: 5px;
             right: 5px;
-            display: flex;
-            gap: 8px;
-        }
-
-        .control-btn {
-            background: none;
-            color: #888;
-            font-size: 1em;
-            font-weight: 900;
             cursor: pointer;
-            border-radius: 3px;
+            opacity: 0.5;
         }
 
         .control-btn:hover {
+            opacity: 1;
             color: var(--danger);
         }
 
+        /* Group Block Styling */
+        .group-item {
+            background: var(--card-dark);
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--grey);
+        }
+
+        /* Results Styling */
         #results {
             background: var(--card-dark);
             padding: 20px;
@@ -154,45 +150,29 @@
             margin-top: 20px;
         }
 
-        .result-item {
-            margin: 8px 0;
-            font-family: 'Courier New', monospace;
-            border-bottom: 1px solid #222;
-            padding-bottom: 4px;
+        .group-result-block {
+            border-left: 2px solid var(--secondary);
+            padding-left: 15px;
+            margin-bottom: 30px;
         }
 
-        .efficiency {
-            font-size: 0.8em;
-            color: #888;
-            margin-left: 10px;
+        .group-result-header {
+            color: var(--secondary);
+            font-weight: bold;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            text-decoration: underline;
         }
 
         .summary-box {
-            background: #222;
+            background: #111;
             padding: 15px;
             border-radius: 5px;
             margin-top: 15px;
-            border: 1px solid #444;
+            border: 1px solid var(--accent);
         }
 
-        .utility-btns {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        .btn-small {
-            font-size: 0.8em;
-            flex: 1;
-        }
-
-        input::-webkit-outer-spin-button,
-        input::-webkit-inner-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-
-        /* Toggle Switch Style */
+        /* Toggle Switch */
         .switch {
             position: relative;
             display: inline-block;
@@ -237,55 +217,71 @@
         input:checked+.slider:before {
             transform: translateX(20px);
         }
+
+        .card.editing {
+            border-color: var(--edit);
+            box-shadow: 0 0 15px rgba(52, 152, 219, 0.3);
+        }
+
+        #saveBtn.editing {
+            background: var(--edit);
+        }
+
+        .control-btn.edit-btn:hover {
+            color: var(--edit);
+        }
     </style>
 </head>
 
 <body>
 
     <div class="container">
-        <h1>🏗️ Factory Architect: Empire Edition</h1>
+        <h1>🏗️ Factory Architect: Group Edition</h1>
 
-        <div class="card" id="inputCard">
-            <h2 id="formTitle">1. Add Machine Recipe</h2>
-            <input type="hidden" id="editId">
+        <div class="card">
+            <h2>1. Machine Recipes</h2>
             <div class="input-group">
-                <input type="text" id="mName" autocomplete="off" placeholder="Machine Name">
-                <input type="number" inputmode="numeric" id="mTime" autocomplete="off" placeholder="Process Time (s)">
-                <input type="number" inputmode="numeric" id="mPower" autocomplete="off" placeholder="Power (KW)">
-                <input type="number" inputmode="numeric" id="mCost" autocomplete="off" placeholder="Build Cost ($)">
-                <input type="number" inputmode="numeric" id="mPreferred" autocomplete="off"
-                    placeholder="Preferred Count (0 = unlimited)" value="0">
+                <input type="hidden" id="editId">
+                <input type="text" id="mName" placeholder="Machine Name">
+                <input type="number" id="mTime" placeholder="Process Time (s)">
+                <input type="number" id="mPower" placeholder="Power (KW)">
+                <input type="number" id="mCost" placeholder="Build Cost ($)">
             </div>
             <div class="input-group">
-                <input type="text" id="mInputs" autocomplete="off" placeholder="Inputs (e.g. 2 coal, 6 water)">
-                <input type="text" id="mOutputs" autocomplete="off" placeholder="Outputs (e.g. 80 pellets)">
+                <input type="text" id="mInputs" placeholder="Inputs (e.g. 2 coal, 6 water)">
+                <input type="text" id="mOutputs" placeholder="Outputs (e.g. 1 steel ingot)">
             </div>
-            <button id="saveBtn" onclick="addRecipe()" style="width: 100%;">💾 Save Machine</button>
-
+            <button onclick="addRecipe()" style="width: 100%;">💾 Save Recipe</button>
             <div id="recipeDisplay" class="recipe-grid"></div>
-
-            <div class="utility-btns">
-                <button class="btn-small" style="background: var(--secondary);" onclick="exportRecipes()">📤 Export
-                    All</button>
-                <button class="btn-small" style="background: var(--edit);"
-                    onclick="document.getElementById('fileInput').click()">📥 Import File</button>
-                <button class="btn-small" style="background: var(--danger);" onclick="clearStorage()">🗑️ Wipe
-                    All</button>
-                <input type="file" id="fileInput" style="display:none" accept=".json" onchange="importRecipes(event)">
+            <div class="input-group" style="margin-top: 10px;">
+                <button onclick="exportData()" style="background: var(--secondary); flex: 1;">📤 Export Data</button>
+                <button onclick="importData()" style="background: var(--edit); flex: 1;">📥 Import Data</button>
+                <button onclick="deleteAllRecipes()" style="background: var(--danger); flex: 1;">🗑️ Delete All</button>
             </div>
         </div>
 
         <div class="card">
-            <h2>2. Plan Production</h2>
+            <h2>2. Production Groups</h2>
             <div class="input-group">
-                <input type="text" id="targetItem" autocomplete="off" placeholder="Target Item">
-                <input type="number" inputmode="numeric" id="targetQty" autocomplete="off" placeholder="Quantity">
-                <input type="number" inputmode="numeric" id="targetTime" autocomplete="off" placeholder="Over Time (s)">
-                <input type="number" inputmode="numeric" id="currentBank" autocomplete="off"
-                    placeholder="Current Bank Balance" value="30000000">
+                <input type="text" id="gName" placeholder="Group Name (e.g. Crankshaft Line)">
+                <input type="text" id="gTarget" placeholder="Target Item">
+                <input type="number" id="gQty" placeholder="Quantity">
+                <input type="number" id="gTime" placeholder="Over Time (s)">
             </div>
-            <button onclick="calculate()" style="background: var(--success); width: 100%; font-size: 1.1em;">🚀 Run
-                Simulation</button>
+            <div class="input-group">
+                <input type="text" id="gInputs"
+                    placeholder="Supplied Inputs (e.g. steel ingot, coke fuel) - Will not spawn machines">
+                <button onclick="addGroup()" style="background: var(--edit);">➕ Add Group</button>
+            </div>
+
+            <div id="groupList" style="margin-top: 15px;"></div>
+
+            <div class="input-group" style="margin-top: 20px; border-top: 1px solid var(--grey); padding-top: 15px;">
+                <input type="number" id="currentBank" placeholder="Current Bank Balance" value="30000000">
+                <button onclick="autoGroup()" style="background: var(--edit); flex: 1;">🤖 Auto-Group</button>
+                <button onclick="calculateAll()" style="background: var(--success); flex: 2; font-size: 1.1em;">🚀 Run
+                    Full Simulation</button>
+            </div>
         </div>
 
         <div id="results">
@@ -293,45 +289,84 @@
             <div
                 style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-weight: bold; color: var(--text);">
                 <label class="switch">
-                    <input type="checkbox" id="advancedToggle" onchange="calculate()">
+                    <input type="checkbox" id="advancedToggle" onchange="calculateAll()">
                     <span class="slider"></span>
                 </label>
                 <span>Advanced View (Show Rates)</span>
             </div>
             <div id="machineList"></div>
-            <div id="rawList"></div>
             <div id="summaryList" class="summary-box"></div>
         </div>
     </div>
 
     <script>
-        // Changed to Array for multiple machines with same name
         let recipes = JSON.parse(localStorage.getItem('factoryRecipes')) || [];
-        displayRecipes();
+        let groups = JSON.parse(localStorage.getItem('factoryGroups')) || [];
+
+        window.onload = () => { displayRecipes(); displayGroups(); };
+
+        // Function to download your database and groups as a JSON file
+        function exportData() {
+            const data = {
+                recipes: recipes,
+                groups: groups
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `factory_recipe_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Function to trigger a file upload and update the local database
+        function importData() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = e => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = event => {
+                    try {
+                        const imported = JSON.parse(event.target.result);
+                        if (imported.recipes) recipes = imported.recipes;
+                        if (imported.groups) groups = imported.groups;
+
+                        saveData();
+                        displayRecipes();
+                        displayGroups();
+                        alert("Import Successful!");
+                    } catch (err) {
+                        alert("Error importing file: Invalid JSON format.");
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
 
         function addRecipe() {
-            const id = document.getElementById('editId').value || Date.now();
+            const editId = document.getElementById('editId').value;
+            const id = editId || Date.now();
             const name = document.getElementById('mName').value.trim();
             const time = parseFloat(document.getElementById('mTime').value);
-            const pwr = parseFloat(document.getElementById('mPower').value) || 0;
-            const cost = parseFloat(document.getElementById('mCost').value) || 0;
-            const preferred = parseInt(document.getElementById('mPreferred').value) || 0;
-            const inStr = document.getElementById('mInputs').value;
-            const outStr = document.getElementById('mOutputs').value;
 
-            if (!name || !time || !outStr) return alert("Missing Info!");
+            if (!name || !time) return alert("Machine Name and Time are required!");
 
             const recipeData = {
                 id: id,
                 name: name,
-                inputs: parseItems(inStr, time),
-                outputs: parseItems(outStr, time),
+                inputs: parseItems(document.getElementById('mInputs').value, time),
+                outputs: parseItems(document.getElementById('mOutputs').value, time),
                 origTime: time,
-                power: pwr,
-                cost: cost,
-                preferred: preferred,
-                rawInputString: inStr,
-                rawOutputString: outStr
+                power: parseFloat(document.getElementById('mPower').value) || 0,
+                cost: parseFloat(document.getElementById('mCost').value) || 0,
+                rawIn: document.getElementById('mInputs').value,
+                rawOut: document.getElementById('mOutputs').value
             };
 
             const existingIdx = recipes.findIndex(r => r.id == id);
@@ -341,35 +376,35 @@
                 recipes.push(recipeData);
             }
 
-            window.location.reload()
-            localStorage.setItem('factoryRecipes', JSON.stringify(recipes));
-            resetForm();
+            saveData();
             displayRecipes();
+            resetRecipeForm();
+        }
+
+        function resetRecipeForm() {
+            ['mName', 'mTime', 'mPower', 'mCost', 'mInputs', 'mOutputs', 'editId'].forEach(id => document.getElementById(id).value = '');
+            document.querySelector('.card').classList.remove('editing');
+            document.getElementById('saveBtn').classList.remove('editing');
+            document.getElementById('saveBtn').innerText = "💾 Save to Database";
         }
 
         function editRecipe(id) {
             const r = recipes.find(rec => rec.id == id);
             if (!r) return;
+
             document.getElementById('editId').value = r.id;
             document.getElementById('mName').value = r.name;
             document.getElementById('mTime').value = r.origTime;
             document.getElementById('mPower').value = r.power;
             document.getElementById('mCost').value = r.cost;
-            document.getElementById('mPreferred').value = r.preferred || 0;
-            document.getElementById('mInputs').value = r.rawInputString;
-            document.getElementById('mOutputs').value = r.rawOutputString;
-            document.getElementById('inputCard').classList.add('editing');
-            document.getElementById('saveBtn').classList.add('editing');
-            document.getElementById('formTitle').innerText = "✏️ Editing: " + r.name;
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+            document.getElementById('mInputs').value = r.rawIn;
+            document.getElementById('mOutputs').value = r.rawOut;
 
-        function resetForm() {
-            ['mName', 'mTime', 'mPower', 'mCost', 'mInputs', 'mOutputs', 'editId'].forEach(id => document.getElementById(id).value = '');
-            document.getElementById('mPrio').value = "2";
-            document.getElementById('inputCard').classList.remove('editing');
-            document.getElementById('saveBtn').classList.remove('editing');
-            document.getElementById('formTitle').innerText = "1. Add Machine Recipe";
+            // UI Feedback
+            document.querySelector('.card').classList.add('editing');
+            document.getElementById('saveBtn').classList.add('editing');
+            document.getElementById('saveBtn').innerText = "Update Machine";
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function parseItems(str, time) {
@@ -384,262 +419,290 @@
             return obj;
         }
 
-        function displayRecipes() {
-            const div = document.getElementById('recipeDisplay');
-            div.innerHTML = "";
-            recipes.forEach(r => {
-                const card = document.createElement('div');
-                card.className = "recipe-card";
-                card.innerHTML = `
-                <div class="card-controls">
-                    <span class="control-btn" onclick="editRecipe('${r.id}')">✏️</span>
-                    <span class="control-btn" onclick="deleteRecipe('${r.id}')">X</span>
-                </div>
-                <strong>${r.name.toUpperCase()}</strong>
-                <span class="prio-tag">Preferred: ${r.preferred || 0}</span><br>
-                <div style="color:#aaa; margin-top:5px;">
-                    📥 Needs: ${Object.keys(r.inputs).join(', ') || 'None'}<br>
-                    📤 Makes: ${Object.keys(r.outputs).join(', ')}<br>
-                    💰 $${(r.cost || 0).toLocaleString()} | ⚡ ${r.power}KW
-                </div>`;
-                div.appendChild(card);
-            });
+        function addGroup() {
+            const name = document.getElementById('gName').value.trim();
+            const item = document.getElementById('gTarget').value.toLowerCase().trim();
+            const qty = parseFloat(document.getElementById('gQty').value);
+            const time = parseFloat(document.getElementById('gTime').value);
+            // Parse the inputs into an array
+            const inputs = document.getElementById('gInputs').value.split(',').map(i => i.trim().toLowerCase()).filter(i => i);
+
+            if (!name || !item || isNaN(qty)) return alert("Fill Group Name, Target, and Quantity!");
+
+            groups.push({ id: Date.now(), name, item, qty, time, inputs });
+            localStorage.setItem('factoryGroups', JSON.stringify(groups));
+            displayGroups();
+
+            // Clear the form
+            ['gName', 'gTarget', 'gQty', 'gInputs'].forEach(id => document.getElementById(id).value = '');
         }
 
-        function deleteRecipe(id) {
-            if (confirm("Delete this recipe?")) {
-                recipes = recipes.filter(r => r.id != id);
-                localStorage.setItem('factoryRecipes', JSON.stringify(recipes));
-                displayRecipes();
-            }
-        }
+        function autoGroup() {
+            const targetItem = document.getElementById('gTarget').value.toLowerCase().trim();
+            const totalQty = parseFloat(document.getElementById('gQty').value);
+            const totalTime = parseFloat(document.getElementById('gTime').value);
 
-        function clearStorage() { if (confirm("Wipe all recipes?")) { localStorage.clear(); recipes = []; displayRecipes(); } }
+            if (!targetItem || isNaN(totalQty)) return alert("Enter a Target Item and Quantity first!");
 
-        function exportRecipes() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(recipes, null, 2));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", "factory_recipes.json");
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
-        }
+            if (groups.length > 0 && !confirm("Clear existing groups and auto-generate new ones?")) return;
+            groups = [];
 
-        function importRecipes(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                try {
-                    const imported = JSON.parse(e.target.result);
-                    // Handle both old object format and new array format for backward compatibility
-                    if (Array.isArray(imported)) {
-                        recipes = [...recipes, ...imported];
-                    } else {
-                        for (let name in imported) {
-                            imported[name].id = Date.now() + Math.random();
-                            imported[name].name = name;
-                            recipes.push(imported[name]);
-                        }
+            let processed = new Set();
+            let queue = [{ item: targetItem, qty: totalQty, time: totalTime }];
+
+            while (queue.length > 0) {
+                let current = queue.shift();
+                if (processed.has(current.item)) continue;
+
+                // Stop if the item is a base raw resource (no recipes found)
+                let producers = findAllProducers(current.item);
+                if (producers.length === 0) continue;
+
+                processed.add(current.item);
+
+                // 1. Run simulation to analyze the internal dependency structure
+                let sim = runLogic(current.item, current.qty, current.time, []);
+
+                // 2. Identify SHARED items:
+                // An item is shared if it is consumed by 2 or more DIFFERENT product-lines.
+                let sharedInputs = [];
+                for (let ingredient in sim.flowTotals) {
+                    let consumers = new Set();
+
+                    // Check treeData to see which items are being produced using this ingredient
+                    for (let productProduced in sim.treeData) {
+                        sim.treeData[productProduced].forEach(node => {
+                            if (node.inputs.some(i => i.itemName === ingredient)) {
+                                consumers.add(productProduced);
+                            }
+                        });
                     }
-                    localStorage.setItem('factoryRecipes', JSON.stringify(recipes));
-                    displayRecipes();
-                    alert("Recipes imported!");
-                } catch (err) { alert("Error reading JSON file."); }
-            };
-            reader.readAsText(file);
+
+                    // Rule: If 2+ different products need this, it becomes a Group Input [RAW]
+                    if (consumers.size >= 2) {
+                        sharedInputs.push(ingredient);
+                    }
+                }
+
+                // 3. Create the group for this stage
+                groups.push({
+                    id: Date.now() + Math.random(),
+                    name: `${current.item.toUpperCase()} GROUP`,
+                    item: current.item,
+                    qty: current.qty,
+                    time: current.time,
+                    inputs: sharedInputs
+                });
+
+                // 4. Recurse: Shared items become the starting point for the next groups
+                sharedInputs.forEach(si => {
+                    // Use the total flow rate calculated in the simulation
+                    queue.push({ item: si, qty: sim.flowTotals[si], time: 1 });
+                });
+            }
+
+            saveData();
+            displayGroups();
+            alert(`Auto-Group Complete! Generated ${groups.length} optimized stages.`);
         }
 
-        function findAllProducers(item) {
-            const search = item.toLowerCase().trim();
-            return recipes.filter(r => r.outputs[search]).map(r => ({
-                machine: r.name,
-                recipeId: r.id,
-                rate: r.outputs[search],
-                preferred: r.preferred || 0,
-                fullRecipe: r
-            }));
+        function calculateAll() {
+            const container = document.getElementById('machineList'); // Reusing existing ID for convenience
+            container.innerHTML = "";
+            document.getElementById('results').style.display = 'block';
+
+            let grandPower = 0;
+            let grandCost = 0;
+
+            groups.forEach(group => {
+                const data = runLogic(group.item, group.qty, group.time, group.inputs);
+                grandPower += data.totalPwr;
+                grandCost += data.totalCost;
+
+                const section = document.createElement('div');
+                section.style.marginBottom = "40px";
+                section.innerHTML = `<div style="color:var(--secondary); font-weight:bold; border-bottom:1px solid var(--secondary); margin-bottom:15px;">📦 GROUP: ${group.name.toUpperCase()}</div>`;
+                section.innerHTML += renderNode(data.treeData, group.item, data.flowTotals[group.item], data.flowTotals, 0);
+                container.appendChild(section);
+            });
+
+            const bank = parseFloat(document.getElementById('currentBank').value) || 0;
+            const remaining = bank - grandCost;
+            document.getElementById('summaryList').innerHTML = `
+        <div style="color:var(--accent)">⚡ Total Factory Power: <b>${grandPower.toLocaleString()} KW</b></div>
+        <div style="color:var(--danger)">💰 Total Build Cost: <b>$${grandCost.toLocaleString()}</b></div>
+        <div style="font-size:1.2em; margin-top:10px; color:${remaining >= 0 ? 'var(--success)' : 'var(--danger)'}">
+            🏦 Remaining Bank: <b>$${remaining.toLocaleString()}</b>
+        </div>
+    `;
         }
 
-        function calculate() {
-            const target = document.getElementById('targetItem').value.toLowerCase().trim();
-            const qty = parseFloat(document.getElementById('targetQty').value);
-            const time = parseFloat(document.getElementById('targetTime').value);
-
-            if (!findAllProducers(target).length) return alert("No recipe for " + target);
-
+        function runLogic(target, qty, time, groupInputs) {
             let totalPwr = 0, totalCost = 0;
             let pending = { [target]: qty / time };
-            let flowTotals = { [target]: qty / time }; // Track total demand globally
-            let bill = {};
-            let usage = {};
-            let toProcess = [target];
-            let preferredUsed = new Set();
-            let surplus = {};
+            let flowTotals = { [target]: qty / time };
             let treeData = {};
-
+            let toProcess = [target];
             const EPSILON = 1e-9;
 
             while (toProcess.length > 0) {
                 const item = toProcess.shift();
                 let amountNeeded = pending[item];
+                if (amountNeeded <= EPSILON) continue;
 
-                if (surplus[item] > 0) {
-                    const taken = Math.min(amountNeeded, surplus[item]);
-                    amountNeeded -= taken;
-                    surplus[item] -= taken;
+                // STOP RULE: If this item is a "Supplied Input" for this group, don't find machines
+                if (groupInputs.includes(item)) {
+                    continue;
                 }
 
-                if (amountNeeded <= EPSILON) continue;
                 pending[item] = 0;
+                let producers = findAllProducers(item); // Uses your existing search function
 
-                let producers = findAllProducers(item).sort((a, b) => (b.preferred || 0) - (a.preferred || 0));
+                if (producers.length > 0) {
+                    let p = producers[0].fullRecipe; // Simplification: pick first producer
+                    let machinesNeeded = Math.ceil((amountNeeded / producers[0].rate) - EPSILON);
 
-                producers.forEach(p => {
-                    if (amountNeeded <= EPSILON) return;
-
-                    let machinesNeeded;
-                    let processAmount;
-
-                    if (p.preferred > 0 && !preferredUsed.has(p.recipeId)) {
-                        preferredUsed.add(p.recipeId);
-                        machinesNeeded = p.preferred;
-                        processAmount = Math.min(amountNeeded, p.preferred * p.rate);
-                    } else if (p.preferred === 0) {
-                        machinesNeeded = Math.ceil((amountNeeded / p.rate) - EPSILON);
-                        processAmount = amountNeeded;
-                    } else {
-                        return;
-                    }
-
-                    bill[p.recipeId] = (bill[p.recipeId] || 0) + machinesNeeded;
-                    usage[p.recipeId] = (usage[p.recipeId] || 0) + processAmount;
-                    totalPwr += (p.fullRecipe.power || 0) * machinesNeeded;
-                    totalCost += (p.fullRecipe.cost || 0) * machinesNeeded;
+                    totalPwr += (p.power || 0) * machinesNeeded;
+                    totalCost += (p.cost || 0) * machinesNeeded;
 
                     if (!treeData[item]) treeData[item] = [];
-                    treeData[item].push({
-                        machine: p.machine,
-                        machinesCount: machinesNeeded,
-                        allOutputs: p.fullRecipe.outputs,
-                        originalRecipe: p.fullRecipe,
-                        outputRate: processAmount,
+                    let node = {
+                        machine: p.name,
+                        count: machinesNeeded,
+                        allOutputs: p.outputs,
                         inputs: []
-                    });
-                    const node = treeData[item][treeData[item].length - 1];
+                    };
 
-                    for (let outItem in p.fullRecipe.outputs) {
-                        const totalProduced = p.fullRecipe.outputs[outItem] * machinesNeeded;
-                        if (outItem === item) {
-                            const extra = totalProduced - processAmount;
-                            if (extra > EPSILON) surplus[outItem] = (surplus[outItem] || 0) + extra;
-                        } else {
-                            surplus[outItem] = (surplus[outItem] || 0) + totalProduced;
-                        }
-                    }
-
-                    for (let input in p.fullRecipe.inputs) {
-                        const inputRate = p.fullRecipe.inputs[input] * (processAmount / p.rate);
-                        pending[input] = (pending[input] || 0) + inputRate;
-                        flowTotals[input] = (flowTotals[input] || 0) + inputRate; // Track global demand
-                        node.inputs.push({ itemName: input, rate: inputRate });
+                    for (let input in p.inputs) {
+                        let rate = p.inputs[input] * (amountNeeded / producers[0].rate);
+                        pending[input] = (pending[input] || 0) + rate;
+                        flowTotals[input] = (flowTotals[input] || 0) + rate;
+                        node.inputs.push({ itemName: input, rate: rate });
                         if (!toProcess.includes(input)) toProcess.push(input);
                     }
-                    amountNeeded -= processAmount;
-                });
+                    treeData[item].push(node);
+                }
             }
-            showUI(bill, usage, treeData, target, flowTotals, totalPwr, totalCost);
-        }
-
-        function showUI(bill, usage, treeData, target, flowTotals, pwr, cost) {
-            document.getElementById('results').style.display = 'block';
-            const bank = parseFloat(document.getElementById('currentBank').value) || 0;
-            const remaining = bank - cost;
-
-            const mList = document.getElementById('machineList');
-            mList.innerHTML = "<h3>🌲 PRODUCTION TREE (DAG)</h3>";
-
-            // Pass global flowTotals and initial target rate
-            mList.innerHTML += renderNode(treeData, target, flowTotals[target], flowTotals, 0);
-
-            document.getElementById('summaryList').innerHTML = `
-                <div style="color:var(--accent)">⚡ Total Power: <b>${pwr.toLocaleString()} KW</b></div>
-                <div style="color:var(--danger)">💰 Build Cost: <b>$${cost.toLocaleString()}</b></div>
-                <div style="font-size:1.2em; margin-top:10px; color:${remaining >= 0 ? 'var(--success)' : 'var(--danger)'}">
-                    🏦 Remaining Bank: <b>$${remaining.toLocaleString()}</b>
-                </div>
-            `;
+            return { treeData, flowTotals, totalPwr, totalCost };
         }
 
         function renderNode(treeData, itemName, requiredRate, flowTotals, depth, isLast = true, prefix = "") {
             const connector = depth === 0 ? "" : (isLast ? "└─ " : "├─ ");
-            // This vertical line needs to continue down through the IN/OUT labels
             const newPrefix = depth === 0 ? "" : prefix + (isLast ? "&nbsp;&nbsp;&nbsp;&nbsp;" : "│&nbsp;&nbsp;&nbsp;");
             const inPrefix = depth === 0 ? "" : prefix + (isLast ? "&nbsp;&nbsp;&nbsp;" : "│&nbsp;&nbsp;");
-
             const isAdvanced = document.getElementById('advancedToggle').checked;
 
             if (!treeData[itemName]) {
-                let isByproduct = false;
-                for (let category in treeData) {
-                    treeData[category].forEach(node => {
-                        if (node.allOutputs[itemName] && category !== itemName) isByproduct = true;
-                    });
-                }
-                const color = isByproduct ? "var(--secondary)" : "#3498db";
-                const label = isByproduct ? "RECYCLED" : "RAW";
                 const displayVal = isAdvanced ? `${requiredRate.toFixed(3)} ${itemName}/s` : itemName;
 
-                return `<div style="font-family: monospace; white-space: nowrap; margin-bottom: 8px; font-size: 18px">
+                // --- NEW LOGIC: IDENTIFY SOURCE GROUP ---
+                // Find if any existing group produces this item
+                const sourceGroup = groups.find(g => g.item.toLowerCase() === itemName.toLowerCase());
+                const sourceText = sourceGroup
+                    ? ` — <small style="color:var(--secondary)">from group: <b>${sourceGroup.name.toUpperCase()}</b></small>`
+                    : "";
+
+                return `<div style="font-family: monospace; white-space: nowrap; margin-bottom: 8px; font-size: 16px">
                     <span style="color: #666;">${prefix}${connector}</span>
-                    <span style="color:${color};">[${label}] ${displayVal}</span>
+                    <span style="color:#3498db;">[RAW] ${displayVal}</span>${sourceText}
                 </div>`;
             }
 
             let html = "";
             treeData[itemName].forEach((node) => {
-                const branchShare = requiredRate / flowTotals[itemName];
-                const localMachines = (node.machinesCount * branchShare).toFixed(2);
-
                 let outputStrings = [];
                 for (let out in node.allOutputs) {
-                    const totalRate = (node.allOutputs[out] * node.machinesCount * branchShare).toFixed(3);
+                    const totalRate = (node.allOutputs[out] * node.count).toFixed(3);
                     outputStrings.push(isAdvanced ? `${totalRate} ${out}/s` : out);
                 }
 
-                let inputStrings = [];
-                    node.inputs.forEach(input => {
-                    inputStrings.push(isAdvanced ? `${input.rate.toFixed(3)} ${input.itemName}/s` : input.itemName);
-                    });
+                let inputStrings = node.inputs.map(inp => isAdvanced ? `${inp.rate.toFixed(3)} ${inp.itemName}/s` : inp.itemName);
 
-                // MAIN MACHINE LINE
-                html += `
-                <div style="font-family: monospace; white-space: nowrap; margin-bottom: 0px; font-size: 18px">
+                html += `<div style="font-family: monospace; white-space: nowrap; margin-bottom: 0px; font-size: 16px">
                     <span style="color: #666;">${prefix}${connector}</span>
-                    <b style="color:var(--accent)">${localMachines}x</b> <b style="color:var(--text)">${node.machine.toUpperCase()}</b>
-                </div>`;
-
-                // OUTPUT LINE (Uses newPrefix to keep the vertical line connected)
-                html += `
-                <div style="font-family: monospace; white-space: nowrap; margin-bottom: 0px; font-size: 18px; opacity: 0.9;">
+                    <b style="color:var(--accent)">${node.count}x</b> <b style="color:var(--text)">${node.machine.toUpperCase()}</b>
+                </div>
+                <div style="font-family: monospace; white-space: nowrap; margin-bottom: 0px; font-size: 16px; opacity: 0.9;">
                     <span style="color: #666;">${inPrefix}</span>
                     <span style="color: var(--success); font-weight: 900;">│OUT:</span> ${outputStrings.join(', ')}
-                </div>`;
-
-                // INPUT LINE (Uses newPrefix to keep the vertical line connected)
-                html += `
-                <div style="font-family: monospace; white-space: nowrap; margin-bottom: 8px; font-size: 18px; opacity: 0.9;">
+                </div>
+                <div style="font-family: monospace; white-space: nowrap; margin-bottom: 8px; font-size: 16px; opacity: 0.9;">
                     <span style="color: #666;">${inPrefix}</span>
                     <span style="color: var(--danger); font-weight: 900;">│IN :</span> ${inputStrings.length ? inputStrings.join(', ') : 'NONE'}
                 </div>`;
 
                 node.inputs.forEach((input, idx) => {
-                    const lastInput = idx === node.inputs.length - 1;
-                    html += renderNode(treeData, input.itemName, input.rate, flowTotals, depth + 1, lastInput, newPrefix);
+                    html += renderNode(treeData, input.itemName, input.rate, flowTotals, depth + 1, idx === node.inputs.length - 1, newPrefix);
                 });
             });
             return html;
+        }
+
+        function displayRecipes() {
+            const div = document.getElementById('recipeDisplay');
+            div.innerHTML = recipes.map(r => `
+                <div class="recipe-card">
+                    <div class="control-btn" style="position:absolute; top:5px; right:5px; display:flex; gap:10px;">
+                        <span onclick="editRecipe(${r.id})" style="cursor:pointer;">✏️</span>
+                        <span onclick="deleteRecipe(${r.id})" style="cursor:pointer;">✖</span>
+                    </div>
+                    <strong>${r.name.toUpperCase()}</strong><br>
+                    <small style="opacity:0.7">📥 In: ${r.rawIn || 'None'} | 📤 Out: ${r.rawOut}</small>
+                </div>
+            `).join('');
+        }
+
+        function displayGroups() {
+            const div = document.getElementById('groupList');
+            div.innerHTML = groups.map(g => `
+        <div class="recipe-card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+            <div>
+                <strong>${g.name}</strong><br>
+                <small>Target: ${g.qty} ${g.item} | Inputs: ${g.inputs.join(', ') || 'None'}</small>
+            </div>
+            <button onclick="deleteGroup(${g.id})" style="background:var(--danger); padding:2px 8px;">X</button>
+        </div>
+    `).join('');
+        }
+
+        function deleteAllRecipes() {
+            if (confirm("Are you sure you want to delete ALL recipes? This cannot be undone.")) {
+                recipes = [];
+                saveData();
+                displayRecipes();
+            }
+        }
+
+        // FIXED: Added String() conversion to prevent type mismatch
+        function deleteRecipe(id) {
+            recipes = recipes.filter(r => String(r.id) !== String(id));
+            saveData();
+            displayRecipes();
+        }
+
+        // FIXED: Added String() conversion for groups as well
+        function deleteGroup(id) {
+            groups = groups.filter(g => String(g.id) !== String(id));
+            localStorage.setItem('factoryGroups', JSON.stringify(groups));
+            displayGroups();
+        }
+
+        function saveData() {
+            localStorage.setItem('factoryRecipes', JSON.stringify(recipes));
+            localStorage.setItem('factoryGroups', JSON.stringify(groups));
+        }
+
+        function findAllProducers(itemName) {
+            let producers = [];
+            recipes.forEach(r => {
+                if (r.outputs[itemName]) {
+                    producers.push({
+                        fullRecipe: r,
+                        rate: r.outputs[itemName]
+                    });
+                }
+            });
+            return producers;
         }
     </script>
 </body>
