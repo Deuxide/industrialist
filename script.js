@@ -19,7 +19,7 @@ function exportData() {
     const a = document.createElement('a');
 
     a.href = url;
-    a.download = `factory_recipe_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `[]-recipe-${new Date().toISOString().slice(0, 10)}.json`;
 
     document.body.appendChild(a);
     a.click();
