@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <link rel="icon" type="image/png" href="120px-Induslogo.png">
-    <title>Industrialist Line Generator</title>
+    <title>Industrialist DAG</title>
 
     <link rel="stylesheet" href="style.css">
 
@@ -16,7 +16,7 @@
 <body>
 
     <div class="container">
-        <h1>Industrialist Line Generator</h1>
+        <h1>Industrialist DAG Generator</h1>
 
         <div class="card">
             <h2>1. Machine Recipes</h2>
@@ -32,13 +32,13 @@
                 <input type="text" id="mOutputs" placeholder="Outputs (e.g. 1 steel ingot)">
             </div>
             <button id="saveBtn" onclick="addRecipe()" style="width: 100%;">
-                💾 Save Recipe
+                Save Recipe
             </button>
             <div id="recipeDisplay" class="recipe-grid"></div>
             <div class="input-group" style="margin-top: 10px;">
-                <button onclick="exportData()" style="background: var(--secondary); flex: 1;">📤 Export Data</button>
-                <button onclick="importData()" style="background: var(--edit); flex: 1;">📥 Import Data</button>
-                <button onclick="deleteAllRecipes()" style="background: var(--danger); flex: 1;">🗑️ Delete All</button>
+                <button onclick="exportData()" style="background: var(--secondary); flex: 1;">Export Data</button>
+                <button onclick="importData()" style="background: var(--edit); flex: 1;">Import Data</button>
+                <button onclick="deleteAllRecipes()" style="background: var(--danger); flex: 1;">Delete All</button>
             </div>
         </div>
 
@@ -65,13 +65,13 @@
                     flex: 2;
                     font-size: 1.1em;
                 ">
-                    🚀 Run Full Simulation
+                    Run Full Simulation
                 </button>
             </div>
         </div>
 
         <div id="results">
-            <h2 style="color: var(--success);">📊 Deployment Blueprint</h2>
+            <h2 style="color: var(--success);">Deployment Blueprint</h2>
             <div
                 style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-weight: bold; color: var(--text);">
                 <label class="switch">

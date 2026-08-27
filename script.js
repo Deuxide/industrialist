@@ -210,12 +210,12 @@ function calculateAll() {
 
     document.getElementById('summaryList').innerHTML = `
         <div style="color:var(--accent)">
-            ⚡ Total Factory Power:
+            Total Factory Power:
             <b>${data.totalPwr.toLocaleString()} KW</b>
         </div>
 
         <div style="color:var(--danger)">
-            💰 Total Build Cost:
+            Total Build Cost:
             <b>$${data.totalCost.toLocaleString()}</b>
         </div>
 
@@ -227,7 +227,7 @@ function calculateAll() {
             : 'var(--danger)'
         };
         ">
-            🏦 Remaining Bank:
+            Remaining Bank:
             <b>$${remaining.toLocaleString()}</b>
         </div>
     `;
