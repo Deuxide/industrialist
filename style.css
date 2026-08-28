@@ -491,9 +491,6 @@ button:hover {
     border-radius: 6px;
     padding: 18px;
     overflow-x: auto;
-    background-image:
-        linear-gradient(var(--grey) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grey) 1px, transparent 1px);
     background-size: 24px 24px;
     background-position: -1px -1px;
 }
