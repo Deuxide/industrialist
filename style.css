@@ -9,73 +9,55 @@
     --danger: #b93220;
     --edit: #5286b9;
     --secondary: #986073;
+
+    --sidebar-width: 340px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
 }
 
 body {
     font-family: 'Segoe UI', sans-serif;
     background: var(--bg);
     color: var(--text);
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    margin: 0;
+    overflow: hidden;
+    /* the sidebar and whiteboard each scroll independently */
 }
 
-body::-webkit-scrollbar {
-    display: none;
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
 }
 
-.container {
-    width: 100%;
-    max-width: 900px;
+::-webkit-scrollbar-track {
+    background: transparent;
 }
 
-.card {
-    background: var(--card);
-    padding: 20px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    border: 1px solid var(--grey);
-    position: relative;
-    transition: 0.3s;
-}
-
-h1 {
-    margin-bottom: 30px;
-    border-bottom: 2px solid var(--accent);
-    display: inline-block;
-    padding-bottom: 5px;
-}
-
-h2 {
-    margin-top: 0;
-    color: var(--text);
-    font-size: 1.2em;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.input-group {
-    margin-bottom: 10px;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
+::-webkit-scrollbar-thumb {
+    background: var(--grey);
+    border-radius: 4px;
 }
 
 input,
 select,
 button {
-    padding: 10px;
+    padding: 8px 10px;
     border-radius: 4px;
     border: none;
     outline: none;
+    font-family: inherit;
 }
 
 input {
     background: var(--card-dark);
     color: white;
-    flex: 1;
-    min-width: 140px;
+    width: 100%;
 }
 
 button {
@@ -87,73 +69,437 @@ button {
 }
 
 button:hover {
-    opacity: 0.8;
+    opacity: 0.85;
 }
 
-/* Recipe Grid Styling */
-.recipe-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 15px;
-    margin-top: 15px;
+
+/* =====================================================
+   SIDEBAR — fixed to the left, own scroll region
+===================================================== */
+
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: var(--sidebar-width);
+    background: var(--card);
+    border-right: 1px solid var(--grey);
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
 }
 
-.recipe-card {
+.sidebar-header {
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid var(--grey);
+    flex-shrink: 0;
+}
+
+.sidebar-header h1 {
+    margin: 0;
+    font-size: 1.1em;
+    letter-spacing: 0.5px;
+}
+
+.sidebar-header h1 span {
+    color: var(--accent);
+}
+
+/* ---- Panels (creator + list) ---- */
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid var(--grey);
+    flex-shrink: 0;
+}
+
+.panel-grow {
+    flex: 1;
+    min-height: 0;
+    /* allow inner list to scroll instead of the whole panel */
+}
+
+.panel-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
     background: var(--card-dark);
-    padding: 12px;
-    border-radius: 6px;
-    border-left: 3px solid var(--accent);
-    position: relative;
+    color: var(--text);
+    border: none;
+    padding: 12px 16px;
     font-size: 0.85em;
-}
-
-.control-btn {
-    position: absolute;
-    top: 5px;
-    right: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: bold;
     cursor: pointer;
-    opacity: 0.5;
+    flex-shrink: 0;
 }
 
-.control-btn:hover {
-    opacity: 1;
-    color: var(--danger);
+.panel-toggle.static {
+    cursor: default;
+    justify-content: space-between;
 }
 
-/* Group Block Styling */
-.group-item {
-    background: var(--card-dark);
-    padding: 10px 15px;
+.panel-toggle:hover:not(.static) {
+    opacity: 0.85;
+}
+
+#creatorToggleIcon {
+    transition: transform 0.2s;
+    display: inline-block;
+}
+
+.count-badge {
+    background: var(--accent);
+    color: white;
+    border-radius: 20px;
+    padding: 2px 9px;
+    font-size: 0.9em;
+}
+
+.panel-body {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+}
+
+.panel-grow .panel-body {
+    flex: 1;
+    min-height: 0;
+}
+
+.panel-body-flush {
+    padding: 10px 12px;
+}
+
+/* collapsed state, toggled via JS adding .collapsed to #creatorPanel */
+#creatorPanel.collapsed .panel-body {
+    display: none;
+}
+
+#creatorPanel.collapsed #creatorToggleIcon {
+    transform: rotate(-90deg);
+}
+
+.field-row {
+    display: flex;
+    gap: 8px;
+}
+
+.field-row.three-col input {
+    min-width: 0;
+}
+
+.full-width-btn {
+    width: 100%;
+    padding: 10px;
+    margin-top: 4px;
+}
+
+.ghost-btn {
+    background: transparent;
+    border: 1px solid var(--grey);
+    color: var(--text);
+}
+
+.ghost-btn:hover {
+    border-color: var(--edit);
+    color: var(--edit);
+}
+
+#creatorPanel.editing {
+    box-shadow: inset 3px 0 0 var(--edit);
+}
+
+#saveBtn.editing {
+    background: var(--edit);
+}
+
+
+/* ---- Recipe search + compact list ---- */
+
+.recipe-search-row {
     margin-bottom: 8px;
+}
+
+.recipe-search-row input {
+    font-size: 0.9em;
+}
+
+.recipe-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+}
+
+.recipe-row {
+    background: var(--card-dark);
     border-radius: 4px;
+    border-left: 3px solid var(--accent);
+    padding: 6px 8px;
+    font-size: 0.78em;
+    cursor: default;
+    position: relative;
+    line-height: 1.4;
+}
+
+.recipe-row .row-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border: 1px solid var(--grey);
+    gap: 6px;
 }
 
-/* Results Styling */
+.recipe-row .row-name {
+    font-weight: bold;
+    color: var(--text);
+    text-transform: uppercase;
+    font-size: 0.95em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.recipe-row .row-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    opacity: 0.55;
+}
+
+.recipe-row .row-actions span {
+    cursor: pointer;
+}
+
+.recipe-row .row-actions span:hover {
+    opacity: 1;
+}
+
+.recipe-row .row-io {
+    opacity: 0.65;
+    font-size: 0.92em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.recipe-row .row-io b {
+    opacity: 0.9;
+}
+
+/* Recipes with an unknown/variable process time (source Time == -1,
+   e.g. steam-temperature-dependent machines). Red left border makes
+   these easy to spot in a long, dense list — their input/output
+   rates are 0 until a real time is set via edit, so they'd otherwise
+   silently look like ordinary (but oddly unusable) recipes. */
+.recipe-row-variable {
+    border-left: 3px solid var(--danger);
+}
+
+.variable-time-badge {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 0.85em;
+    color: var(--danger);
+    font-weight: bold;
+    letter-spacing: 0.3px;
+}
+
+/* Disabled machines — e.g. "I haven't unlocked the Alloyer yet".
+   Kept in the library but visually muted and struck through so
+   it reads as "off" at a glance; the simulator skips these
+   entirely (see findAllProducers in script.js). */
+.recipe-row-disabled {
+    opacity: 0.45;
+    border-left-color: var(--grey);
+}
+
+.recipe-row-disabled .row-name {
+    text-decoration: line-through;
+}
+
+.disabled-badge {
+    display: inline-block;
+    margin-top: 4px;
+    margin-left: 6px;
+    font-size: 0.85em;
+    color: var(--text);
+    opacity: 0.8;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+}
+
+.toggle-enabled {
+    color: var(--success);
+}
+
+.toggle-disabled {
+    color: var(--danger);
+}
+
+/* ---- Filter pills (All / Enabled / Disabled) ---- */
+
+.filter-pill-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.filter-pill {
+    flex: 1;
+    background: var(--card-dark);
+    color: var(--text);
+    opacity: 0.65;
+    border: 1px solid var(--grey);
+    border-radius: 20px;
+    padding: 5px 8px;
+    font-size: 0.72em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.15s;
+}
+
+.filter-pill:hover {
+    opacity: 0.9;
+}
+
+.filter-pill.active {
+    background: var(--accent);
+    color: white;
+    opacity: 1;
+    border-color: var(--accent);
+}
+
+.filter-pill-count {
+    display: inline-block;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 10px;
+    padding: 0 6px;
+    font-size: 0.95em;
+}
+
+.recipe-empty-msg {
+    opacity: 0.5;
+    font-size: 0.85em;
+    text-align: center;
+    padding: 20px 10px;
+}
+
+.data-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--grey);
+    flex-shrink: 0;
+}
+
+.tiny-btn {
+    flex: 1;
+    padding: 7px;
+    font-size: 0.75em;
+}
+
+
+/* =====================================================
+   MAIN / WHITEBOARD — centered content area to the
+   right of the sidebar
+===================================================== */
+
+.whiteboard {
+    position: absolute;
+    top: 0;
+    left: var(--sidebar-width);
+    right: 0;
+    bottom: 0;
+    overflow-y: auto;
+    padding: 20px 30px 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.target-bar {
+    width: 100%;
+    max-width: 1100px;
+    background: var(--card);
+    border: 1px solid var(--grey);
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin-bottom: 20px;
+}
+
+.target-bar input {
+    flex: 1;
+    min-width: 120px;
+}
+
+.run-btn {
+    background: var(--success);
+    font-size: 1em;
+    white-space: nowrap;
+    padding: 10px 18px;
+}
+
+/* Results / DAG canvas */
+
 #results {
+    width: 100%;
+    max-width: 1100px;
     background: var(--card-dark);
     padding: 20px;
     border-radius: 8px;
     border: 1px solid var(--success);
     display: none;
-    margin-top: 20px;
 }
 
-.group-result-block {
-    border-left: 2px solid var(--secondary);
-    padding-left: 15px;
-    margin-bottom: 30px;
+.results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
 }
 
-.group-result-header {
-    color: var(--secondary);
-    font-weight: bold;
-    margin-bottom: 15px;
-    font-size: 1.1em;
-    text-decoration: underline;
+.results-header h2 {
+    margin: 0;
+    color: var(--success);
+    font-size: 1.2em;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* the "whiteboard" itself — a plain, scrollable, monospace surface
+   for the text-based DAG (no fancy graphics, per the brief) */
+.dag-scroll {
+    background: #171717;
+    border: 1px solid var(--grey);
+    border-radius: 6px;
+    padding: 18px;
+    overflow-x: auto;
+    background-image:
+        linear-gradient(var(--grey) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grey) 1px, transparent 1px);
+    background-size: 24px 24px;
+    background-position: -1px -1px;
+}
+
+.dag-canvas {
+    min-width: max-content;
 }
 
 .summary-box {
@@ -164,12 +510,27 @@ button:hover {
     border: 1px solid var(--accent);
 }
 
+.empty-state {
+    width: 100%;
+    max-width: 1100px;
+    text-align: center;
+    padding: 60px 20px;
+    opacity: 0.5;
+}
+
+.empty-sub {
+    font-size: 0.85em;
+    margin-top: 6px;
+}
+
+
 /* Toggle Switch */
 .switch {
     position: relative;
     display: inline-block;
     width: 40px;
     height: 20px;
+    flex-shrink: 0;
 }
 
 .switch input {
@@ -210,15 +571,34 @@ input:checked+.slider:before {
     transform: translateX(20px);
 }
 
-.card.editing {
-    border-color: var(--edit);
-    box-shadow: 0 0 15px rgba(52, 152, 219, 0.3);
-}
 
-#saveBtn.editing {
-    background: var(--edit);
-}
+/* =====================================================
+   RESPONSIVE — collapse sidebar to a top bar on narrow
+   viewports so the tool stays usable on smaller screens
+===================================================== */
 
-.control-btn.edit-btn:hover {
-    color: var(--edit);
+@media (max-width: 860px) {
+    :root {
+        --sidebar-width: 100%;
+    }
+
+    body {
+        overflow: auto;
+    }
+
+    .sidebar {
+        position: relative;
+        width: 100%;
+        height: auto;
+        max-height: 60vh;
+        border-right: none;
+        border-bottom: 1px solid var(--grey);
+    }
+
+    .whiteboard {
+        position: relative;
+        left: 0;
+        height: auto;
+        overflow-y: visible;
+    }
 }

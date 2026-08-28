@@ -15,75 +15,126 @@
 
 <body>
 
-    <div class="container">
-        <h1>Industrialist DAG Generator</h1>
+    <!-- ============================================================
+         SIDEBAR — recipe creator (collapsible) + compact recipe list.
+         Fixed/absolute to the left; scrolls independently of the
+         whiteboard so a large recipe library doesn't push the DAG
+         output around.
+    ============================================================= -->
+    <aside class="sidebar">
 
-        <div class="card">
-            <h2>1. Machine Recipes</h2>
-            <div class="input-group">
-                <input type="hidden" id="editId">
-                <input type="text" id="mName" placeholder="Machine Name">
-                <input type="number" id="mTime" placeholder="Process Time (s)">
-                <input type="number" id="mPower" placeholder="Power (KW)">
-                <input type="number" id="mCost" placeholder="Build Cost ($)">
-            </div>
-            <div class="input-group">
-                <input type="text" id="mInputs" placeholder="Inputs (e.g. 2 coal, 6 water)">
-                <input type="text" id="mOutputs" placeholder="Outputs (e.g. 1 steel ingot)">
-            </div>
-            <button id="saveBtn" onclick="addRecipe()" style="width: 100%;">
-                Save Recipe
-            </button>
-            <div id="recipeDisplay" class="recipe-grid"></div>
-            <div class="input-group" style="margin-top: 10px;">
-                <button onclick="exportData()" style="background: var(--secondary); flex: 1;">Export Data</button>
-                <button onclick="importData()" style="background: var(--edit); flex: 1;">Import Data</button>
-                <button onclick="deleteAllRecipes()" style="background: var(--danger); flex: 1;">Delete All</button>
-            </div>
+        <div class="sidebar-header">
+            <h1>Industrialist<span>DAG</span></h1>
         </div>
 
-        <div class="card">
-            <h2>2. Production Target</h2>
+        <!-- ---- Recipe Creator (collapsible) ---- -->
+        <div class="panel" id="creatorPanel">
+            <button class="panel-toggle" onclick="toggleCreator()">
+                <span id="creatorToggleIcon">▾</span>
+                <span>Add / Edit Recipe</span>
+            </button>
 
-            <div class="input-group">
-                <input type="text" id="targetItem" placeholder="Target Item">
+            <div class="panel-body" id="creatorBody">
+                <input type="hidden" id="editId">
 
-                <input type="number" id="targetQty" placeholder="Quantity">
+                <div class="field-row">
+                    <input type="text" id="mName" placeholder="Machine Name">
+                </div>
 
-                <input type="number" id="targetTime" placeholder="Over Time (s)">
-            </div>
+                <div class="field-row three-col">
+                    <input type="number" id="mTime" placeholder="Time (s)">
+                    <input type="number" id="mPower" placeholder="Power (KW)">
+                    <input type="number" id="mCost" placeholder="Cost ($)">
+                </div>
 
-            <div class="input-group" style="
-                margin-top: 20px;
-                border-top: 1px solid var(--grey);
-                padding-top: 15px;
-            ">
-                <input type="number" id="currentBank" placeholder="Current Bank Balance" value="30000000">
+                <div class="field-row">
+                    <input type="text" id="mInputs" placeholder="Inputs (e.g. 2 coal, 6 water)">
+                </div>
+                <div class="field-row">
+                    <input type="text" id="mOutputs" placeholder="Outputs (e.g. 1 steel ingot)">
+                </div>
 
-                <button onclick="calculateAll()" style="
-                    background: var(--success);
-                    flex: 2;
-                    font-size: 1.1em;
-                ">
-                    Run Full Simulation
+                <button id="saveBtn" onclick="addRecipe()" class="full-width-btn">
+                    Save Recipe
+                </button>
+                <button id="cancelEditBtn" onclick="resetRecipeForm()" class="full-width-btn ghost-btn" style="display:none;">
+                    Cancel Edit
                 </button>
             </div>
         </div>
 
-        <div id="results">
-            <h2 style="color: var(--success);">Deployment Blueprint</h2>
-            <div
-                style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-weight: bold; color: var(--text);">
-                <label class="switch">
-                    <input type="checkbox" id="advancedToggle" onchange="calculateAll()">
-                    <span class="slider"></span>
-                </label>
-                <span>Advanced View (Show Rates)</span>
+        <!-- ---- Recipe List (compact, searchable, scrollable) ---- -->
+        <div class="panel panel-grow">
+            <div class="panel-toggle static">
+                <span>Recipe Library</span>
+                <span id="recipeCount" class="count-badge">0</span>
             </div>
-            <div id="machineList"></div>
+
+            <div class="panel-body panel-body-flush">
+                <div class="recipe-search-row">
+                    <input type="text" id="recipeSearch" placeholder="Search item or machine…" oninput="displayRecipes()">
+                </div>
+
+                <div class="filter-pill-row">
+                    <button id="filterPill-all" class="filter-pill active" onclick="setRecipeStatusFilter('all')">All</button>
+                    <button id="filterPill-enabled" class="filter-pill" onclick="setRecipeStatusFilter('enabled')">Enabled</button>
+                    <button id="filterPill-disabled" class="filter-pill" onclick="setRecipeStatusFilter('disabled')">Disabled&nbsp;<span id="disabledPillCount" class="filter-pill-count">0</span></button>
+                </div>
+
+                <div id="recipeDisplay" class="recipe-list"></div>
+
+                <div class="data-actions">
+                    <button onclick="exportData()" class="tiny-btn" style="background: var(--secondary);" title="Export Data">Export</button>
+                    <button onclick="importData()" class="tiny-btn" style="background: var(--edit);" title="Import Data">Import</button>
+                    <button onclick="deleteAllRecipes()" class="tiny-btn" style="background: var(--danger);" title="Delete All">Clear</button>
+                </div>
+            </div>
+        </div>
+
+    </aside>
+
+    <!-- ============================================================
+         MAIN — the "whiteboard": target controls up top, then the
+         plain text-based DAG output, centered, scrollable in both
+         directions since deep trees run wide.
+    ============================================================= -->
+    <main class="whiteboard">
+
+        <div class="target-bar">
+            <input type="text" id="targetItem" placeholder="Target Item">
+            <input type="number" id="targetQty" placeholder="Quantity">
+            <input type="number" id="targetTime" placeholder="Over Time (s)">
+            <input type="number" id="currentBank" placeholder="Bank Balance" value="30000000">
+
+            <label class="switch" title="Advanced View (Show Rates)">
+                <input type="checkbox" id="advancedToggle" onchange="calculateAll()">
+                <span class="slider"></span>
+            </label>
+
+            <button onclick="calculateAll()" class="run-btn">
+                Run Simulation
+            </button>
+        </div>
+
+        <div id="results">
+            <div class="results-header">
+                <h2>Deployment Blueprint</h2>
+            </div>
+
+            <div class="dag-scroll">
+                <div id="machineList" class="dag-canvas"></div>
+            </div>
+
             <div id="summaryList" class="summary-box"></div>
         </div>
-    </div>
+
+        <div id="emptyState" class="empty-state">
+            <p>Set a target item, quantity, and time above, then run the simulation.</p>
+            <p class="empty-sub">The production tree will render here like a whiteboard sketch.</p>
+        </div>
+
+    </main>
+
 </body>
 
 </html>
