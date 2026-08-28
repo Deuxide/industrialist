@@ -392,17 +392,18 @@ function parseItems(str, time) {
 
 
 
-function calculateAll() {
+function calculateAll(rerollColors = false) {
     const container = document.getElementById('machineList');
 
     container.innerHTML = "";
 
-    // Re-roll the shared-item color seed for this render. Colors
-    // stay fixed for every node within THIS calculation (so a
-    // machine's badge and its "⤴ shared above" pointers still
-    // match each other), but will look different the next time
-    // this function runs (e.g. pressing Calculate again).
-    currentColorSeed = Math.floor(Math.random() * 2147483647);
+    // Re-roll only for a fresh calculation. Toggling Advanced View
+    // redraws the same DAG and should not change its color mapping.
+    if (rerollColors) {
+        currentColorSeed = Math.floor(Math.random() * 2147483647);
+        sharedColorAssignments.clear();
+        usedSharedColors.clear();
+    }
 
     document.getElementById('results').style.display = 'block';
     const emptyState = document.getElementById('emptyState');
@@ -426,6 +427,13 @@ function calculateAll() {
     }
 
     const data = runLogic(target, qty, time);
+
+    activeRecipeIds = new Set(
+        Object.values(data.treeData)
+            .flat()
+            .map(node => node.recipeId)
+    );
+    displayRecipes();
 
     const section = document.createElement('div');
 
@@ -1051,9 +1059,10 @@ function runLogic(target, qty, time) {
 //
 // Each distinct shared item (e.g. "steel ingot" vs "iron mix")
 // gets its own color, generated from a hash of its name mixed
-// with a seed. The seed is re-rolled every time calculateAll()
-// runs (every "Calculate" press), so colors look different from
-// one generate to the next — but the seed itself is fixed for
+// with a seed. The seed is re-rolled for each fresh calculation
+// (every "Run Simulation" press), so colors look different from
+// one generate to the next. Toggling Advanced View reuses the
+// existing seed, so the seed itself is fixed for
 // the DURATION of a single render, so within that one tree the
 // badge on a machine's full expansion and every "⤴ shared
 // above" pointer to it still land on the exact same color. If
@@ -1066,30 +1075,85 @@ function runLogic(target, qty, time) {
 // (decent contrast, not too dark/muddy, not neon).
 //
 const SHARED_ITEM_PALETTE = [
-    "#e67e22", // orange
-    "#3498db", // blue
-    "#2ecc71", // green
-    "#e74c3c", // red
-    "#9b59b6", // purple
-    "#1abc9c", // teal
-    "#f1c40f", // yellow
-    "#e84393", // pink
-    "#00cec9", // cyan
-    "#fd79a8", // rose
-    "#a29bfe", // lavender
-    "#fab1a0", // peach
+    "#e76f51", "#2a9d8f", "#e9c46a", "#264653",
+    "#f4a261", "#457b9d", "#8ab17d", "#d62828",
+    "#6a4c93", "#118ab2", "#ff006e", "#8338ec",
+    "#3a86ff", "#06d6a0", "#fb5607", "#ffbe0b",
+    "#7209b7", "#4361ee", "#4cc9f0", "#f72585",
+    "#588157", "#bc6c25", "#006d77", "#ef476f",
 ];
 
-// Current render's color seed. Re-rolled once per calculateAll()
-// call (see there) — NOT per node, NOT per page load.
+// Item-to-color assignments stay stable while the current DAG is
+// redrawn. Each new item gets the palette color farthest from the
+// colors already assigned, avoiding duplicate or near-duplicate
+// highlights even when item hashes collide.
+const sharedColorAssignments = new Map();
+const usedSharedColors = new Set();
+
+// Current render's color seed. Re-rolled once per fresh calculation
+// (see calculateAll) — NOT per node, NOT per page load.
 let currentColorSeed = Math.floor(Math.random() * 2147483647);
 
 function getSharedItemColor(itemName, seed = currentColorSeed) {
+    if (sharedColorAssignments.has(itemName)) {
+        return sharedColorAssignments.get(itemName);
+    }
+
     let hash = seed >>> 0;
     for (let i = 0; i < itemName.length; i++) {
         hash = (Math.imul(hash, 31) + itemName.charCodeAt(i)) >>> 0;
     }
-    return SHARED_ITEM_PALETTE[hash % SHARED_ITEM_PALETTE.length];
+
+    const availableColors = SHARED_ITEM_PALETTE.filter(
+        color => !usedSharedColors.has(color)
+    );
+
+    let selectedColor;
+
+    if (availableColors.length > 0) {
+        const colorDistance = (first, second) => {
+            const firstRgb = [1, 3, 5].map(
+                offset => parseInt(first.slice(offset, offset + 2), 16)
+            );
+            const secondRgb = [1, 3, 5].map(
+                offset => parseInt(second.slice(offset, offset + 2), 16)
+            );
+
+            return Math.sqrt(firstRgb.reduce(
+                (total, value, index) => total + (value - secondRgb[index]) ** 2,
+                0
+            ));
+        };
+
+        const assignedColors = [...usedSharedColors];
+        selectedColor = availableColors
+            .map((color, index) => ({
+                color,
+                index,
+                distance: assignedColors.length === 0
+                    ? 0
+                    : Math.min(...assignedColors.map(
+                        assigned => colorDistance(color, assigned)
+                    ))
+            }))
+            .sort((first, second) =>
+                second.distance - first.distance ||
+                ((first.index + hash) % availableColors.length) -
+                ((second.index + hash) % availableColors.length)
+            )[0].color;
+    } else {
+        let hue = (hash + usedSharedColors.size * 137.5) % 360;
+        selectedColor = `hsl(${hue}, 75%, 55%)`;
+
+        while (usedSharedColors.has(selectedColor)) {
+            hue = (hue + 137.5) % 360;
+            selectedColor = `hsl(${hue}, 75%, 55%)`;
+        }
+    }
+
+    sharedColorAssignments.set(itemName, selectedColor);
+    usedSharedColors.add(selectedColor);
+    return selectedColor;
 }
 
 
@@ -1676,8 +1740,11 @@ function escapeHtml(str) {
         .replace(/"/g, '&quot;');
 }
 
+// Recipe IDs represented in the currently displayed DAG.
+let activeRecipeIds = new Set();
+
 // Current status filter for the recipe library list: 'all',
-// 'enabled', or 'disabled'. Persists only for the session (not
+// 'enabled', 'disabled', or 'used'. Persists only for the session (not
 // saved to localStorage) — always reopens showing everything.
 let recipeStatusFilter = 'all';
 
@@ -1698,7 +1765,7 @@ function displayRecipes() {
     // Keep the filter pills in sync (active state + counts) even
     // when displayRecipes() is called from somewhere other than a
     // pill click (e.g. after add/edit/delete/import).
-    ['all', 'enabled', 'disabled'].forEach(f => {
+    ['all', 'enabled', 'disabled', 'used'].forEach(f => {
         const btn = document.getElementById(`filterPill-${f}`);
         if (!btn) return;
         btn.classList.toggle('active', recipeStatusFilter === f);
@@ -1712,6 +1779,8 @@ function displayRecipes() {
         filtered = filtered.filter(r => !r.disabled);
     } else if (recipeStatusFilter === 'disabled') {
         filtered = filtered.filter(r => r.disabled);
+    } else if (recipeStatusFilter === 'used') {
+        filtered = filtered.filter(r => activeRecipeIds.has(r.id));
     }
 
     if (query) {
@@ -1760,6 +1829,7 @@ function displayRecipes() {
         let rowClass = 'recipe-row';
         if (isVariable) rowClass += ' recipe-row-variable';
         if (isDisabled) rowClass += ' recipe-row-disabled';
+        if (activeRecipeIds.has(r.id)) rowClass += ' recipe-row-active';
 
         const variableBadge = isVariable
             ? `<span class="variable-time-badge" title="Process time is variable (e.g. steam-temperature dependent) — rates are 0 until you set a real time">⚠ variable time</span>`

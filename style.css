@@ -324,6 +324,10 @@ button:hover {
     text-decoration: line-through;
 }
 
+.recipe-row-active {
+    border-left-color: var(--success);
+}
+
 .disabled-badge {
     display: inline-block;
     margin-top: 4px;

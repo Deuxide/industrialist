@@ -79,6 +79,7 @@
                     <button id="filterPill-all" class="filter-pill active" onclick="setRecipeStatusFilter('all')">All</button>
                     <button id="filterPill-enabled" class="filter-pill" onclick="setRecipeStatusFilter('enabled')">Enabled</button>
                     <button id="filterPill-disabled" class="filter-pill" onclick="setRecipeStatusFilter('disabled')">Disabled&nbsp;<span id="disabledPillCount" class="filter-pill-count">0</span></button>
+                    <button id="filterPill-used" class="filter-pill" onclick="setRecipeStatusFilter('used')">Used</button>
                 </div>
 
                 <div id="recipeDisplay" class="recipe-list"></div>
@@ -107,11 +108,11 @@
             <input type="number" id="currentBank" placeholder="Bank Balance" value="30000000">
 
             <label class="switch" title="Advanced View (Show Rates)">
-                <input type="checkbox" id="advancedToggle" onchange="calculateAll()">
+                <input type="checkbox" id="advancedToggle" onchange="calculateAll(false)">
                 <span class="slider"></span>
             </label>
 
-            <button onclick="calculateAll()" class="run-btn">
+            <button onclick="calculateAll(true)" class="run-btn">
                 Run Simulation
             </button>
         </div>
