@@ -1,6 +1,21 @@
 let recipes = JSON.parse(localStorage.getItem('factoryRecipes')) || [];
 
 window.onload = () => {
+    const recipeDisplay = document.getElementById('recipeDisplay');
+    if (recipeDisplay) {
+        recipeDisplay.addEventListener('click', (event) => {
+            const actionEl = event.target.closest('[data-recipe-action]');
+            if (!actionEl) return;
+
+            const action = actionEl.dataset.recipeAction;
+            const id = actionEl.dataset.recipeId;
+
+            if (action === 'toggle') toggleRecipeDisabled(id);
+            if (action === 'edit') editRecipe(id);
+            if (action === 'delete') deleteRecipe(id);
+        });
+    }
+
     displayRecipes();
 };
 
@@ -259,7 +274,8 @@ function convertFlatRecipeFormat(flatList) {
         const inputParts = [];
         (r.Inputs || []).forEach((name, idx) => {
             const amt = (r.InputAmounts && r.InputAmounts[idx]) || 0;
-            inputs[name.toLowerCase()] = hasVariableTime ? 0 : amt / time;
+            const key = name.toLowerCase();
+            inputs[key] = (inputs[key] || 0) + (hasVariableTime ? 0 : amt / time);
             inputParts.push(`${amt} ${name}`);
         });
 
@@ -267,7 +283,8 @@ function convertFlatRecipeFormat(flatList) {
         const outputParts = [];
         (r.Outputs || []).forEach((name, idx) => {
             const amt = (r.OutputAmounts && r.OutputAmounts[idx]) || 0;
-            outputs[name.toLowerCase()] = hasVariableTime ? 0 : amt / time;
+            const key = name.toLowerCase();
+            outputs[key] = (outputs[key] || 0) + (hasVariableTime ? 0 : amt / time);
             outputParts.push(`${amt} ${name}`);
         });
 
@@ -385,7 +402,9 @@ function parseItems(str, time) {
         const parts = p.trim().split(' ');
         const qty = parseFloat(parts[0]);
         const item = parts.slice(1).join(' ').toLowerCase().trim();
-        if (item) obj[item] = qty / time;
+        if (item) {
+            obj[item] = (obj[item] || 0) + (qty / time);
+        }
     });
     return obj;
 }
@@ -997,12 +1016,6 @@ function runLogic(target, qty, time) {
 
         for (let output in recipe.outputs) {
 
-            if (output === item) {
-                // Exactly covers the deficit we just solved for.
-                // Do not bank it — see note above.
-                continue;
-            }
-
             const produced =
                 recipe.outputs[output] *
                 machinesNeeded;
@@ -1016,20 +1029,54 @@ function runLogic(target, qty, time) {
                 continue;
             }
 
+            const isSameItemRecirculation =
+                output === item &&
+                Number.isFinite(recipe.inputs[output]) &&
+                recipe.inputs[output] > 0;
+
+            if (output === item) {
+                // Exactly covers the deficit we just solved for.
+                // Do not bank it into the general supply ledger, or a
+                // later unrelated branch will erroneously "see" free
+                // product and under-build real demand. However, if the
+                // same item is also consumed by this recipe (e.g. a boiler
+                // that recycles its own water while producing steam), we
+                // should still record that portion as internal recycling so
+                // the renderer can show "recycled from Boiler" instead of
+                // falling through to [RAW].
+                if (isSameItemRecirculation) {
+                    byproductSupplied[output] =
+                        (byproductSupplied[output] || 0) +
+                        produced;
+
+                    if (!byproductSource[output]) {
+                        byproductSource[output] = {
+                            machineName: recipe.name,
+                            sourceItem: item,
+                            recipeId: recipe.id
+                        };
+                    }
+                }
+                continue;
+            }
+
             supply[output] =
                 (supply[output] || 0) +
                 produced;
 
-            // Remember which machine/recipe produced this byproduct
-            // and what its primary output was, so the renderer can
-            // later show "recycled from C" with a working jump link,
-            // instead of a bare [RAW] label when this item gets
-            // consumed elsewhere in the tree.
-            byproductSource[output] = {
-                machineName: recipe.name,
-                sourceItem: item,
-                recipeId: recipe.id
-            };
+            // Remember which machine/recipe produced this byproduct.
+            // Keep the FIRST valid source for an item instead of
+            // overwriting it later with another unrelated recipe,
+            // otherwise stale mappings cause false recycled outlines
+            // on machines that are not actually producing the item in
+            // the current branch.
+            if (!byproductSource[output]) {
+                byproductSource[output] = {
+                    machineName: recipe.name,
+                    sourceItem: item,
+                    recipeId: recipe.id
+                };
+            }
         }
 
         // =====================================================
@@ -1675,11 +1722,20 @@ function renderNode(
         const wholeMachines = Math.ceil(node.count - 1e-9);
         const exactStr = node.count.toFixed(4);
 
-        const recycledSourceItem = Object.keys(node.allOutputs).find(out => {
-            const source = byproductSource[out];
-            return source && source.recipeId === node.recipeId;
-        });
-        const recycledSourceColor = recycledSourceItem ? '#698114' : null;
+        const recycledSourceItem =
+            Object.keys(byproductSource).find(
+                sourceItem =>
+                    byproductSource[sourceItem] &&
+                    byproductSource[sourceItem].recipeId === node.recipeId
+            ) ||
+            (itemName && byproductSource[itemName] && byproductSource[itemName].recipeId === node.recipeId
+                ? itemName
+                : null);
+
+        const recycledSourceColor =
+            recycledSourceItem
+                ? getSharedItemColor(recycledSourceItem)
+                : null;
 
         // Badge shown only on the item's FIRST (full) expansion when
         // it's shared by 2+ different parents elsewhere in the tree —
@@ -1878,25 +1934,41 @@ function buildGraphData(
     if (!treeData[itemName]) {
         const recycledAmount = byproductSupplied[itemName] || 0;
         const source = byproductSource[itemName];
+        const recycledColor = getSharedItemColor(itemName);
+
+        // If this item is internally supplied as a byproduct, connect the
+        // source machine directly to the consuming machine instead of creating
+        // a separate "recycled" node card. This keeps the DAG as a clean flow
+        // graph and emphasizes that the material is coming from a real machine.
+        if (source) {
+            const sourceNodeId = nodeIdForRecipe.get(source.recipeId);
+            if (sourceNodeId && parentNodeId) {
+                edges.push({
+                    from: sourceNodeId,
+                    to: parentNodeId,
+                    itemName,
+                    rate: requiredRate,
+                    isSharedEdge: true,
+                    sharedColor: recycledColor
+                });
+                return sourceNodeId;
+            }
+        }
+
         const id = nextId('raw');
 
-        if (source && recycledAmount >= requiredRate - EPS) {
-            nodes.push({
-                id, kind: 'recycled', label: itemName, itemName,
-                rate: recycledAmount, isShared, sharedColor,
-                sourceMachine: source.machineName,
-                refRecipeId: source.recipeId
-            });
-        } else if (source && recycledAmount > EPS) {
+        if (source && recycledAmount > EPS) {
             nodes.push({
                 id, kind: 'raw', label: itemName, itemName,
-                rate: requiredRate, isShared, sharedColor,
+                rate: requiredRate, isShared, sharedColor: recycledColor,
+                recycledSourceColor: recycledColor,
                 partialRecycle: { amount: recycledAmount, machine: source.machineName }
             });
         } else {
             nodes.push({
                 id, kind: 'raw', label: itemName, itemName,
-                rate: requiredRate, isShared, sharedColor
+                rate: requiredRate, isShared, sharedColor: recycledColor,
+                recycledSourceColor: recycledColor
             });
         }
 
@@ -1961,11 +2033,20 @@ function buildGraphData(
             rate: node.allOutputs[out] * node.count
         }));
 
-        const recycledSourceItem = Object.keys(node.allOutputs).find(out => {
-            const source = byproductSource[out];
-            return source && source.recipeId === node.recipeId;
-        });
-        const recycledSourceColor = recycledSourceItem ? '#698114' : null;
+        const recycledSourceItem =
+            Object.keys(byproductSource).find(
+                sourceItem =>
+                    byproductSource[sourceItem] &&
+                    byproductSource[sourceItem].recipeId === node.recipeId
+            ) ||
+            (itemName && byproductSource[itemName] && byproductSource[itemName].recipeId === node.recipeId
+                ? itemName
+                : null);
+
+        const recycledSourceColor =
+            recycledSourceItem
+                ? getSharedItemColor(recycledSourceItem)
+                : null;
 
         nodes.push({
             id: machineId,
@@ -2085,13 +2166,25 @@ function renderGraphDAG(container, graphData, isAdvanced) {
     const totalW = graphInfo.width || 800;
     const totalH = graphInfo.height || 400;
 
-    let defs = `
-        <defs>
-            <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse">
-                <path d="M0,0 L10,5 L0,10 Z" fill="#f0d58a"></path>
+    const edgeColors = new Set(
+        g.edges().map(e => {
+            const edgeData = g.edge(e).edge;
+            return edgeData.isSharedEdge && edgeData.sharedColor
+                ? edgeData.sharedColor
+                : '#e6d9b0';
+        })
+    );
+
+    const markerDefs = [...edgeColors].map(color => {
+        const markerId = `arrowhead-${color.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        return `
+            <marker id="${markerId}" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 Z" fill="${color}"></path>
             </marker>
-        </defs>
-    `;
+        `;
+    }).join('');
+
+    let defs = `<defs>${markerDefs}</defs>`;
 
     // ---- EDGES ----
     let edgesHtml = '';
@@ -2104,10 +2197,11 @@ function renderGraphDAG(container, graphData, isAdvanced) {
         ).join(' ');
 
         const stroke = edgeData.isSharedEdge
-            ? edgeData.sharedColor
+            ? edgeData.sharedColor || '#e6d9b0'
             : '#e6d9b0';
         const width = edgeData.isSharedEdge ? 2.8 : 2;
         const dash = edgeData.isSharedEdge ? '' : '';
+        const arrowId = `arrowhead-${stroke.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
         const rateLabel = isAdvanced
             ? `${edgeData.rate.toFixed(2)}/s ${edgeData.itemName}`
@@ -2117,7 +2211,7 @@ function renderGraphDAG(container, graphData, isAdvanced) {
 
         edgesHtml += `
             <g class="dag-edge">
-                <path d="${path}" fill="none" stroke="${stroke}" stroke-width="${width}" marker-end="url(#arrowhead)" opacity="0.85"></path>
+                <path d="${path}" fill="none" stroke="${stroke}" stroke-width="${width}" marker-end="url(#${arrowId})" opacity="0.85"></path>
                 <title>${svgEsc(rateLabel)}</title>
             </g>
         `;
@@ -2138,10 +2232,10 @@ function renderGraphDAG(container, graphData, isAdvanced) {
         // text tree's surface rather than picking up an amber tint.
         const fill = node.kind === 'machine' ? '#1c1c1c' : '#101010';
         let borderColor = 'var(--grey)';
-        if (node.kind === 'raw') borderColor = '#3498db';
+        if (node.kind === 'raw') borderColor = node.recycledSourceColor || '#3498db';
         if (node.kind === 'recycled') borderColor = node.sharedColor || 'var(--success)';
         if (node.kind === 'cycle') borderColor = 'var(--danger)';
-        if (node.recycledSourceColor) borderColor = '#698114';
+        if (node.recycledSourceColor) borderColor = node.recycledSourceColor;
         if (node.isShared && node.sharedColor) borderColor = node.sharedColor;
 
         const glow = node.isShared || node.recycledSourceColor
@@ -2177,7 +2271,11 @@ Inputs: ${svgEsc(inputStr)}</title>
             let textColor = '#3498db';
             let extra = '';
             if (node.kind === 'recycled') { icon = '♻ '; textColor = node.sharedColor || 'var(--success)'; extra = `from ${node.sourceMachine}`; }
-            if (node.kind === 'raw') { icon = '[RAW] '; extra = node.partialRecycle ? `partly recycled from ${node.partialRecycle.machine}` : ''; }
+            if (node.kind === 'raw') {
+                icon = '[RAW] ';
+                textColor = node.recycledSourceColor || node.sharedColor || '#3498db';
+                extra = node.partialRecycle ? `partly recycled from ${node.partialRecycle.machine}` : '';
+            }
             if (node.kind === 'cycle') { icon = '[CYCLE] '; textColor = 'var(--danger)'; }
 
             const rateStr = isAdvanced ? ` (${node.rate.toFixed(2)}/s)` : '';
@@ -2460,9 +2558,9 @@ function displayRecipes() {
                 <div class="row-top">
                     <span class="row-name">${escapeHtml(r.name)}</span>
                     <span class="row-actions">
-                        <span onclick="toggleRecipeDisabled(${JSON.stringify(r.id)})" title="${toggleTitle}" class="${isDisabled ? 'toggle-disabled' : 'toggle-enabled'}">${toggleIcon}</span>
-                        <span onclick="editRecipe(${JSON.stringify(r.id)})" title="Edit">✏️</span>
-                        <span onclick="deleteRecipe(${JSON.stringify(r.id)})" title="Delete">✖</span>
+                        <span data-recipe-action="toggle" data-recipe-id="${escapeHtml(String(r.id))}" title="${toggleTitle}" class="${isDisabled ? 'toggle-disabled' : 'toggle-enabled'}">${toggleIcon}</span>
+                        <span data-recipe-action="edit" data-recipe-id="${escapeHtml(String(r.id))}" title="Edit">✏️</span>
+                        <span data-recipe-action="delete" data-recipe-id="${escapeHtml(String(r.id))}" title="Delete">✖</span>
                     </span>
                 </div>
                 <div class="row-io">
