@@ -2188,13 +2188,31 @@ function renderGraphDAG(container, graphData, isAdvanced) {
 
     // ---- EDGES ----
     let edgesHtml = '';
-    g.edges().forEach(e => {
+    g.edges().forEach((e, i) => {
         const edgeData = g.edge(e).edge;
         const points = g.edge(e).points;
+        const sourceNode = g.node(e.v);
+        const targetNode = g.node(e.w);
 
-        const path = points.map((p, i) =>
-            (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)
-        ).join(' ');
+        // Always leave the source from its right edge, run a short
+        // horizontal segment before the bend, then route vertically to
+        // match the target's Y and finally enter the target from the left.
+        const isBackward = sourceNode.x > targetNode.x;
+        const sourceExitX = isBackward
+            ? sourceNode.x - sourceNode.width / 2
+            : sourceNode.x + sourceNode.width / 2;
+        const targetEntryX = isBackward
+            ? targetNode.x + targetNode.width / 2
+            : targetNode.x - targetNode.width / 2;
+
+        const sourceOffset = sourceNode.height * 0.18 * (targetNode.y >= sourceNode.y ? 1 : -1);
+        const targetOffset = targetNode.height * 0.18 * (sourceNode.y >= targetNode.y ? 1 : -1);
+        const sourceY = sourceNode.y + sourceOffset;
+        const targetY = targetNode.y + targetOffset;
+        const elbowOffset = 18 + ((e.v.length + e.w.length + i) % 9) * 2.5;
+
+        const horizontalLead = isBackward ? -elbowOffset : elbowOffset;
+        const path = `M ${sourceExitX.toFixed(1)} ${sourceY.toFixed(1)} L ${(sourceExitX + horizontalLead).toFixed(1)} ${sourceY.toFixed(1)} L ${(sourceExitX + horizontalLead).toFixed(1)} ${targetY.toFixed(1)} L ${targetEntryX.toFixed(1)} ${targetY.toFixed(1)}`;
 
         const stroke = edgeData.isSharedEdge
             ? edgeData.sharedColor || '#e6d9b0'
