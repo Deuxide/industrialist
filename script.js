@@ -1948,7 +1948,13 @@ function buildGraphData(
                     to: parentNodeId,
                     itemName,
                     rate: requiredRate,
-                    isSharedEdge: true,
+                    // A TRUE recycle edge: a machine's own byproduct is
+                    // being fed back to satisfy demand elsewhere in the
+                    // tree. Distinct from isSharedEdge (below), which just
+                    // means "this item has more than one consumer" — a
+                    // recycle edge specifically means "the supply is a
+                    // byproduct, not the item's primary expansion."
+                    isRecycleEdge: true,
                     sharedColor: recycledColor
                 });
                 return sourceNodeId;
@@ -2166,38 +2172,147 @@ function renderGraphDAG(container, graphData, isAdvanced) {
     const totalW = graphInfo.width || 800;
     const totalH = graphInfo.height || 400;
 
-    const edgeColors = new Set(
+    // Recycle edges get their own arrowhead colors (suffixed so a
+    // shared item that's ALSO a recycle source doesn't collide with
+    // its plain shared-edge marker), plus one fixed ♻-colored marker
+    // used when a recycle edge has no specific shared color.
+    const RECYCLE_DEFAULT = '#7fd858';
+
+    const plainColors = new Set(
         g.edges().map(e => {
             const edgeData = g.edge(e).edge;
+            if (edgeData.isRecycleEdge) return null;
             return edgeData.isSharedEdge && edgeData.sharedColor
                 ? edgeData.sharedColor
                 : '#e6d9b0';
-        })
+        }).filter(Boolean)
     );
 
-    const markerDefs = [...edgeColors].map(color => {
-        const markerId = `arrowhead-${color.replace(/[^a-zA-Z0-9]/g, '_')}`;
-        return `
-            <marker id="${markerId}" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse">
-                <path d="M0,0 L10,5 L0,10 Z" fill="${color}"></path>
-            </marker>
-        `;
-    }).join('');
+    const recycleColors = new Set(
+        g.edges().map(e => {
+            const edgeData = g.edge(e).edge;
+            if (!edgeData.isRecycleEdge) return null;
+            return edgeData.sharedColor || RECYCLE_DEFAULT;
+        }).filter(Boolean)
+    );
+
+    const markerDefs = [
+        ...[...plainColors].map(color => {
+            const markerId = `arrowhead-${color.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            return `
+                <marker id="${markerId}" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse">
+                    <path d="M0,0 L10,5 L0,10 Z" fill="${color}"></path>
+                </marker>
+            `;
+        }),
+        // Recycle arrowheads are a distinct hollow chevron shape (not a
+        // solid triangle) so they read as "different kind of edge" even
+        // at a glance, before the color or dash registers.
+        ...[...recycleColors].map(color => {
+            const markerId = `arrowhead-recycle-${color.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            return `
+                <marker id="${markerId}" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto-start-reverse">
+                    <path d="M0,0 L10,5 L0,10 M0,5 L10,5" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path>
+                </marker>
+            `;
+        })
+    ].join('');
 
     let defs = `<defs>${markerDefs}</defs>`;
 
     // ---- EDGES ----
-    let edgesHtml = '';
+    // Draw recycle edges FIRST (so plain edges layer visually on top
+    // and stay easy to trace), then plain/shared edges.
+    let recycleEdgesHtml = '';
+    let plainEdgesHtml = '';
+
     g.edges().forEach((e, i) => {
         const edgeData = g.edge(e).edge;
-        const points = g.edge(e).points;
         const sourceNode = g.node(e.v);
         const targetNode = g.node(e.w);
 
-        // Always leave the source from its right edge, run a short
-        // horizontal segment before the bend, then route vertically to
-        // match the target's Y and finally enter the target from the left.
         const isBackward = sourceNode.x > targetNode.x;
+
+        if (edgeData.isRecycleEdge) {
+            // ---- RECYCLE EDGE: dashed elbow, its own marker + label ----
+            //
+            // Same straight elbow routing as a plain edge (exit the
+            // source's facing side, short horizontal lead, vertical jog,
+            // enter the target's facing side) — just dashed, its own
+            // arrowhead, and a "♻ item" label at the elbow's midpoint so
+            // a byproduct feeding back into an earlier machine still
+            // reads as a distinct kind of edge, not a full loop-the-node
+            // arc.
+            const sourceExitX = isBackward
+                ? sourceNode.x - sourceNode.width / 2
+                : sourceNode.x + sourceNode.width / 2;
+            const targetEntryX = isBackward
+                ? targetNode.x + targetNode.width / 2
+                : targetNode.x - targetNode.width / 2;
+
+            const sourceOffset = sourceNode.height * 0.18 * (targetNode.y >= sourceNode.y ? 1 : -1);
+            const targetOffset = targetNode.height * 0.18 * (sourceNode.y >= targetNode.y ? 1 : -1);
+            const sourceY = sourceNode.y + sourceOffset;
+            const targetY = targetNode.y + targetOffset;
+
+            // Wider, more spread-out random-ish offset than plain edges
+            // use, so a recycle edge sharing a rough path with other
+            // edges is less likely to sit directly on top of them.
+            const elbowOffset = 34 + ((e.v.length * 7 + e.w.length * 13 + i * 5) % 22) * 4;
+
+            const horizontalLead = isBackward ? -elbowOffset : elbowOffset;
+            const jogX = sourceExitX + horizontalLead;
+
+            // Guarantee the FINAL segment (the one the arrowhead sits
+            // on) is a real, minimum-length horizontal run pointing the
+            // correct direction into the target. Without this, whenever
+            // the target happens to sit close to (or past) the jog's X
+            // position, that last segment collapses to near-zero or
+            // flips sign — and SVG's auto-start-reverse then orients the
+            // arrowhead off the PRECEDING (vertical) segment instead,
+            // making it point up/down rather than at the target.
+            const MIN_FINAL_RUN = 26;
+            const finalDir = isBackward ? -1 : 1; // which way "into the target" points
+            let jogXClamped = jogX;
+            if (finalDir > 0 && jogXClamped > targetEntryX - MIN_FINAL_RUN) {
+                jogXClamped = targetEntryX - MIN_FINAL_RUN;
+            } else if (finalDir < 0 && jogXClamped < targetEntryX + MIN_FINAL_RUN) {
+                jogXClamped = targetEntryX + MIN_FINAL_RUN;
+            }
+
+            const path = `M ${sourceExitX.toFixed(1)} ${sourceY.toFixed(1)} L ${jogXClamped.toFixed(1)} ${sourceY.toFixed(1)} L ${jogXClamped.toFixed(1)} ${targetY.toFixed(1)} L ${targetEntryX.toFixed(1)} ${targetY.toFixed(1)}`;
+
+            const stroke = edgeData.sharedColor || RECYCLE_DEFAULT;
+            const arrowId = `arrowhead-recycle-${stroke.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+            const rateLabel = isAdvanced
+                ? `♻ recycled: ${edgeData.rate.toFixed(2)}/s ${edgeData.itemName}`
+                : `♻ recycled ${edgeData.itemName}`;
+
+            const labelText = isAdvanced
+                ? `♻ ${edgeData.itemName} ${edgeData.rate.toFixed(2)}/s`
+                : `♻ ${edgeData.itemName}`;
+            const labelW = Math.min(180, 14 + labelText.length * 6.1);
+            // Sit the label just above the elbow's vertical segment,
+            // rather than centered on top of the line itself, so it
+            // doesn't overlap the path or the arrowhead.
+            const labelX = jogXClamped;
+            const labelY = (sourceY + targetY) / 2 - 14;
+
+            recycleEdgesHtml += `
+                <g class="dag-edge dag-edge-recycle">
+                    <path d="${path}" fill="none" stroke="${stroke}" stroke-width="2.2" stroke-dasharray="7,5" marker-end="url(#${arrowId})" opacity="0.9"></path>
+                    <title>${svgEsc(rateLabel)}</title>
+                </g>
+                <g class="dag-edge-label" transform="translate(${(labelX - labelW / 2).toFixed(1)},${(labelY - 9).toFixed(1)})" pointer-events="none">
+                    <rect width="${labelW.toFixed(1)}" height="18" rx="9" fill="#101410" stroke="${stroke}" stroke-width="1" opacity="0.92"></rect>
+                    <text x="${(labelW / 2).toFixed(1)}" y="13" fill="${stroke}" font-family="monospace" font-size="10" font-weight="bold" text-anchor="middle">${svgEsc(fitLabel(labelText, 26))}</text>
+                </g>
+            `;
+            return;
+        }
+
+        // ---- PLAIN / SHARED EDGE (unchanged elbow routing) ----
         const sourceExitX = isBackward
             ? sourceNode.x - sourceNode.width / 2
             : sourceNode.x + sourceNode.width / 2;
@@ -2209,7 +2324,9 @@ function renderGraphDAG(container, graphData, isAdvanced) {
         const targetOffset = targetNode.height * 0.18 * (sourceNode.y >= targetNode.y ? 1 : -1);
         const sourceY = sourceNode.y + sourceOffset;
         const targetY = targetNode.y + targetOffset;
-        const elbowOffset = 18 + ((e.v.length + e.w.length + i) % 12) * 2.5;
+        // Wider spread than before (was 18 + (0..11)*2.5, max 45.5) so
+        // elbows sharing a similar path are less likely to overlap.
+        const elbowOffset = 24 + ((e.v.length * 7 + e.w.length * 13 + i * 5) % 22) * 4;
 
         const horizontalLead = isBackward ? -elbowOffset : elbowOffset;
         const path = `M ${sourceExitX.toFixed(1)} ${sourceY.toFixed(1)} L ${(sourceExitX + horizontalLead).toFixed(1)} ${sourceY.toFixed(1)} L ${(sourceExitX + horizontalLead).toFixed(1)} ${targetY.toFixed(1)} L ${targetEntryX.toFixed(1)} ${targetY.toFixed(1)}`;
@@ -2218,22 +2335,21 @@ function renderGraphDAG(container, graphData, isAdvanced) {
             ? edgeData.sharedColor || '#e6d9b0'
             : '#e6d9b0';
         const width = edgeData.isSharedEdge ? 2.8 : 2;
-        const dash = edgeData.isSharedEdge ? '' : '';
         const arrowId = `arrowhead-${stroke.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
         const rateLabel = isAdvanced
             ? `${edgeData.rate.toFixed(2)}/s ${edgeData.itemName}`
             : edgeData.itemName;
 
-        const mid = points[Math.floor(points.length / 2)];
-
-        edgesHtml += `
+        plainEdgesHtml += `
             <g class="dag-edge">
                 <path d="${path}" fill="none" stroke="${stroke}" stroke-width="${width}" marker-end="url(#${arrowId})" opacity="0.85"></path>
                 <title>${svgEsc(rateLabel)}</title>
             </g>
         `;
     });
+
+    const edgesHtml = recycleEdgesHtml + plainEdgesHtml;
 
     // ---- NODES ----
     let nodesHtml = '';

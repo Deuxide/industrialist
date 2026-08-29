@@ -587,6 +587,19 @@ button:hover {
     pointer-events: none;
 }
 
+/* Recycle (byproduct-feeds-backward) edges — dashed arcs with their
+   own chevron arrowhead and a pill label, kept visually distinct from
+   ordinary shared-item edges so a loop reads as "recycled" at a
+   glance rather than just another flow line. */
+.dag-edge-recycle path {
+    transition: opacity 0.15s;
+}
+
+.dag-edge-recycle:hover path {
+    opacity: 1 !important;
+    stroke-width: 3;
+}
+
 .dag-zoom-controls {
     display: none;
     align-items: center;
