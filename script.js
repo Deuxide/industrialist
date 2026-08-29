@@ -2209,7 +2209,7 @@ function renderGraphDAG(container, graphData, isAdvanced) {
         const targetOffset = targetNode.height * 0.18 * (sourceNode.y >= targetNode.y ? 1 : -1);
         const sourceY = sourceNode.y + sourceOffset;
         const targetY = targetNode.y + targetOffset;
-        const elbowOffset = 18 + ((e.v.length + e.w.length + i) % 9) * 2.5;
+        const elbowOffset = 18 + ((e.v.length + e.w.length + i) % 12) * 2.5;
 
         const horizontalLead = isBackward ? -elbowOffset : elbowOffset;
         const path = `M ${sourceExitX.toFixed(1)} ${sourceY.toFixed(1)} L ${(sourceExitX + horizontalLead).toFixed(1)} ${sourceY.toFixed(1)} L ${(sourceExitX + horizontalLead).toFixed(1)} ${targetY.toFixed(1)} L ${targetEntryX.toFixed(1)} ${targetY.toFixed(1)}`;
