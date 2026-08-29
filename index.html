@@ -10,6 +10,7 @@
 
     <link rel="stylesheet" href="style.css">
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
     <script src="script.js" defer></script>
 </head>
 
@@ -120,10 +121,27 @@
         <div id="results">
             <div class="results-header">
                 <h2>Deployment Blueprint</h2>
+
+                <div class="dag-view-switcher" role="tablist" aria-label="DAG view">
+                    <button id="dagTab-text" class="dag-tab active" role="tab" aria-selected="true" onclick="setDagView('text')">
+                        ☰ Text Tree
+                    </button>
+                    <button id="dagTab-graphic" class="dag-tab" role="tab" aria-selected="false" onclick="setDagView('graphic')">
+                        ⎇ Graphic DAG
+                    </button>
+                </div>
             </div>
 
             <div class="dag-scroll">
                 <div id="machineList" class="dag-canvas"></div>
+                <div id="machineGraph" class="dag-graph-canvas"></div>
+            </div>
+
+            <div id="dagZoomControls" class="dag-zoom-controls">
+                <button class="tiny-btn" onclick="dagZoomOut()" title="Zoom out">−</button>
+                <button class="tiny-btn" onclick="dagZoomReset()" title="Fit to screen">⤢ Fit</button>
+                <button class="tiny-btn" onclick="dagZoomIn()" title="Zoom in">+</button>
+                <span class="dag-zoom-hint">Drag to pan · Scroll to zoom</span>
             </div>
 
             <div id="summaryList" class="summary-box"></div>

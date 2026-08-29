@@ -429,6 +429,12 @@ button:hover {
     display: flex;
     flex-direction: column;
     align-items: center;
+    background:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px),
+        #101212;
+    background-size: 24px 24px, 24px 24px, auto;
+    background-position: -1px -1px, -1px -1px, 0 0;
 }
 
 .target-bar {
@@ -464,11 +470,10 @@ button:hover {
 
 #results {
     width: 100%;
-    max-width: 1100px;
-    background: var(--card-dark);
-    padding: 20px;
-    border-radius: 8px;
-    border: 1px solid var(--success);
+    max-width: none;
+    background: transparent;
+    padding: 0;
+    border: none;
     display: none;
 }
 
@@ -477,6 +482,9 @@ button:hover {
     align-items: center;
     justify-content: space-between;
     margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 0 4px;
 }
 
 .results-header h2 {
@@ -487,20 +495,115 @@ button:hover {
     letter-spacing: 1px;
 }
 
-/* the "whiteboard" itself — a plain, scrollable, monospace surface
-   for the text-based DAG (no fancy graphics, per the brief) */
-.dag-scroll {
-    background: #171717;
+/* ---- DAG view switcher (Text Tree / Graphic DAG segmented control) ---- */
+
+.dag-view-switcher {
+    display: flex;
+    background: var(--card-dark);
     border: 1px solid var(--grey);
-    border-radius: 6px;
-    padding: 18px;
+    border-radius: 20px;
+    padding: 3px;
+    gap: 2px;
+}
+
+.dag-tab {
+    background: transparent;
+    color: var(--text);
+    opacity: 0.6;
+    border: none;
+    border-radius: 16px;
+    padding: 6px 14px;
+    font-size: 0.8em;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: 0.15s;
+}
+
+.dag-tab:hover {
+    opacity: 0.85;
+}
+
+.dag-tab.active {
+    background: var(--success);
+    color: white;
+    opacity: 1;
+}
+
+/* the "whiteboard" itself — a plain, scrollable, monospace surface
+   for the text-based DAG (no fancy graphics, per the brief). True
+   black/gray, not the app's warm --card tone — this surface is meant
+   to read as a blank slate the diagram sits on top of, in both the
+   text and graphic views. */
+.dag-scroll {
+    background: #0a0a0a;
+    border: 1px solid rgba(237, 228, 189, 0.12);
+    border-radius: 0;
+    padding: 18px 12px;
     overflow-x: auto;
+    background-image:
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
     background-size: 24px 24px;
     background-position: -1px -1px;
 }
 
 .dag-canvas {
     min-width: max-content;
+    width: 100%;
+}
+
+/* Graphic DAG canvas — fixed viewport for the pan/zoom SVG. Unlike
+   the text tree (which just grows and lets .dag-scroll scroll), the
+   graph manages its own pan/zoom internally, so it needs a bounded
+   box to pan/zoom *within* rather than an ever-expanding scrollable
+   area. Hidden by default; JS toggles display alongside .dag-canvas. */
+.dag-graph-canvas {
+    display: none;
+    width: 100%;
+    height: 65vh;
+    min-height: 420px;
+    overflow: hidden;
+    touch-action: none;
+    border-radius: 0;
+    background: #0a0a0a;
+    border: 1px solid rgba(237, 228, 189, 0.12);
+}
+
+.dag-graph-canvas svg {
+    background:
+        linear-gradient(90deg, #232323 1px, transparent 1px) 0 0 / 24px 24px,
+        linear-gradient(#232323 1px, transparent 1px) 0 0 / 24px 24px;
+    background-color: #0a0a0a;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+}
+
+.dag-graph-canvas svg text {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    pointer-events: none;
+}
+
+.dag-zoom-controls {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.dag-zoom-controls .tiny-btn {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    font-size: 0.9em;
+}
+
+.dag-zoom-hint {
+    margin-left: 8px;
+    font-size: 0.75em;
+    opacity: 0.5;
 }
 
 .summary-box {

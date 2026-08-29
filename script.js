@@ -392,10 +392,75 @@ function parseItems(str, time) {
 
 
 
+// Which DAG view is currently visible: 'text' or 'graphic'.
+// Persists across re-simulate / advanced-toggle so switching tabs
+// doesn't reset when the user re-runs the sim.
+let activeDagView = 'text';
+
+// Cached { nodes, edges, target } from the most recent calculateAll(),
+// so switching to the Graphic tab (or toggling Advanced View while on
+// it) can re-render from cache instead of re-running the solver.
+let lastGraphData = null;
+
+function setDagView(view) {
+    activeDagView = view;
+    updateDagViewVisibility();
+
+    // Lazily render the graphic view the first time it's switched to,
+    // using whatever data is currently cached from the last run.
+    if (view === 'graphic' && lastGraphData) {
+        const graphContainer = document.getElementById('machineGraph');
+        const isAdvanced = document.getElementById('advancedToggle')?.checked || false;
+        if (graphContainer && !graphContainer.hasChildNodes()) {
+            renderGraphDAG(graphContainer, lastGraphData, isAdvanced);
+        }
+    }
+}
+
+function updateDagViewVisibility() {
+    const textEl = document.getElementById('machineList');
+    const graphEl = document.getElementById('machineGraph');
+    const tabText = document.getElementById('dagTab-text');
+    const tabGraphic = document.getElementById('dagTab-graphic');
+    const zoomControls = document.getElementById('dagZoomControls');
+
+    if (!textEl || !graphEl) return;
+
+    const showGraphic = activeDagView === 'graphic';
+
+    textEl.style.display = showGraphic ? 'none' : 'block';
+    graphEl.style.display = showGraphic ? 'block' : 'none';
+    if (zoomControls) zoomControls.style.display = showGraphic ? 'flex' : 'none';
+
+    if (tabText) {
+        tabText.classList.toggle('active', !showGraphic);
+        tabText.setAttribute('aria-selected', String(!showGraphic));
+    }
+    if (tabGraphic) {
+        tabGraphic.classList.toggle('active', showGraphic);
+        tabGraphic.setAttribute('aria-selected', String(showGraphic));
+    }
+}
+
+function dagZoomIn() {
+    const c = document.getElementById('machineGraph');
+    if (c && c._dagZoomIn) c._dagZoomIn();
+}
+function dagZoomOut() {
+    const c = document.getElementById('machineGraph');
+    if (c && c._dagZoomOut) c._dagZoomOut();
+}
+function dagZoomReset() {
+    const c = document.getElementById('machineGraph');
+    if (c && c._dagZoomReset) c._dagZoomReset();
+}
+
 function calculateAll(rerollColors = false) {
     const container = document.getElementById('machineList');
+    const graphContainer = document.getElementById('machineGraph');
 
     container.innerHTML = "";
+    if (graphContainer) graphContainer.innerHTML = "";
 
     // Re-roll only for a fresh calculation. Toggling Advanced View
     // redraws the same DAG and should not change its color mapping.
@@ -466,6 +531,21 @@ function calculateAll(rerollColors = false) {
     );
 
     container.appendChild(section);
+
+    // ---- GRAPHIC DAG ----
+    // Build once per simulation run (cheap relative to layout) and
+    // store so switching tabs or toggling Advanced View doesn't need
+    // to re-run the solver — just re-layout/re-render from cached data.
+    lastGraphData = buildGraphDataRoot(data, target);
+
+    if (graphContainer) {
+        const isAdvanced = document.getElementById('advancedToggle')?.checked || false;
+        if (activeDagView === 'graphic') {
+            renderGraphDAG(graphContainer, lastGraphData, isAdvanced);
+        }
+    }
+
+    updateDagViewVisibility();
 
     const bank =
         parseFloat(
@@ -1595,6 +1675,12 @@ function renderNode(
         const wholeMachines = Math.ceil(node.count - 1e-9);
         const exactStr = node.count.toFixed(4);
 
+        const recycledSourceItem = Object.keys(node.allOutputs).find(out => {
+            const source = byproductSource[out];
+            return source && source.recipeId === node.recipeId;
+        });
+        const recycledSourceColor = recycledSourceItem ? '#698114' : null;
+
         // Badge shown only on the item's FIRST (full) expansion when
         // it's shared by 2+ different parents elsewhere in the tree —
         // same color as its matching "⤴ shared above" references,
@@ -1621,6 +1707,7 @@ function renderNode(
                 margin-bottom: 0px;
                 font-size: 16px;
                 ${sharedHighlightStyle}
+                ${recycledSourceColor ? `border: 2px solid ${recycledSourceColor}; box-shadow: 0 0 0 1px rgba(105, 129, 20, 0.45); background: rgba(105, 129, 20, 0.06); border-radius: 6px; padding: 4px 8px;` : ""}
             ">
                 <span style="color: #666;">
                     ${prefix}${connector}
@@ -1730,6 +1817,530 @@ function renderNode(
 
 
     return html;
+}
+
+// =========================================================
+// GRAPHIC DAG — GRAPH DATA BUILDER
+// =========================================================
+//
+// Mirrors renderNode()'s traversal EXACTLY (same recursion order,
+// same `visited` / `rendered` / `renderedRecipes` dedup sets) but
+// instead of emitting an HTML string, it emits a flat { nodes, edges }
+// graph structure for the node-and-edge visualization. Keeping the
+// two traversals in lockstep means the graphic view and text view
+// always agree on what's collapsed, what's shared, and what's a
+// cycle/raw/recycled leaf — no separate source of truth to drift.
+//
+// Node shape:
+//   {
+//     id,                 // unique within this render pass
+//     kind,                // 'machine' | 'raw' | 'recycled' | 'cycle' | 'ref'
+//     label,                // machine or item name
+//     itemName,             // item this node represents/produces
+//     count, exactCount,    // machine count (machine nodes only)
+//     rate,                 // it/s, for advanced-view labels
+//     isShared, sharedColor,
+//     recipeId,
+//     refTargetId           // for 'ref' nodes: id of the node this points to
+//   }
+//
+// Edge shape: { from, to, itemName, rate }
+
+function buildGraphData(
+    treeData,
+    itemName,
+    requiredRate,
+    flowTotals,
+    visited,
+    rendered,
+    sharedItems,
+    byproductSupplied,
+    byproductSource,
+    renderedRecipes,
+    nodes,
+    edges,
+    nodeIdForItem,     // item -> id of its full-expansion node (for 'ref'/back-edges)
+    nodeIdForRecipe,   // recipeId -> id of its machine node
+    parentNodeId       // id of the node that consumes this item (edge target), or null for root
+) {
+    const EPS = 1e-6;
+    let idCounter = buildGraphData._idCounter;
+
+    function nextId(prefix) {
+        buildGraphData._idCounter += 1;
+        return `${prefix}_${buildGraphData._idCounter}`;
+    }
+
+    const isShared = sharedItems.has(itemName);
+    const sharedColor = isShared ? getSharedItemColor(itemName) : null;
+
+    // ---- RAW / RECYCLED LEAF ----
+    if (!treeData[itemName]) {
+        const recycledAmount = byproductSupplied[itemName] || 0;
+        const source = byproductSource[itemName];
+        const id = nextId('raw');
+
+        if (source && recycledAmount >= requiredRate - EPS) {
+            nodes.push({
+                id, kind: 'recycled', label: itemName, itemName,
+                rate: recycledAmount, isShared, sharedColor,
+                sourceMachine: source.machineName,
+                refRecipeId: source.recipeId
+            });
+        } else if (source && recycledAmount > EPS) {
+            nodes.push({
+                id, kind: 'raw', label: itemName, itemName,
+                rate: requiredRate, isShared, sharedColor,
+                partialRecycle: { amount: recycledAmount, machine: source.machineName }
+            });
+        } else {
+            nodes.push({
+                id, kind: 'raw', label: itemName, itemName,
+                rate: requiredRate, isShared, sharedColor
+            });
+        }
+
+        if (parentNodeId) {
+            edges.push({ from: id, to: parentNodeId, itemName, rate: requiredRate });
+        }
+        return id;
+    }
+
+    // ---- CYCLE ----
+    if (visited.has(itemName)) {
+        const id = nextId('cycle');
+        nodes.push({ id, kind: 'cycle', label: itemName, itemName, rate: requiredRate });
+        if (parentNodeId) {
+            edges.push({ from: id, to: parentNodeId, itemName, rate: requiredRate });
+        }
+        return id;
+    }
+
+    // ---- ALREADY FULLY EXPANDED ELSEWHERE — draw a real edge back to it ----
+    if (rendered.has(itemName)) {
+        const targetId = nodeIdForItem.get(itemName);
+        if (parentNodeId && targetId) {
+            edges.push({
+                from: targetId, to: parentNodeId, itemName,
+                rate: requiredRate, isSharedEdge: true, sharedColor: getSharedItemColor(itemName)
+            });
+        }
+        return targetId;
+    }
+
+    rendered.add(itemName);
+    const branchVisited = new Set(visited);
+    branchVisited.add(itemName);
+
+    let firstNodeIdForThisItem = null;
+
+    treeData[itemName].forEach((node) => {
+        // Co-product recipe already drawn — just add an edge to it.
+        if (renderedRecipes.has(node.recipeId)) {
+            const targetId = nodeIdForRecipe.get(node.recipeId);
+            if (parentNodeId && targetId) {
+                edges.push({
+                    from: targetId, to: parentNodeId, itemName,
+                    rate: requiredRate, isSharedEdge: true,
+                    sharedColor: isShared ? sharedColor : getSharedItemColor(itemName)
+                });
+            }
+            if (!firstNodeIdForThisItem) firstNodeIdForThisItem = targetId;
+            return;
+        }
+
+        renderedRecipes.add(node.recipeId);
+
+        const machineId = nextId('m');
+        nodeIdForRecipe.set(node.recipeId, machineId);
+        if (!firstNodeIdForThisItem) firstNodeIdForThisItem = machineId;
+        if (!nodeIdForItem.has(itemName)) nodeIdForItem.set(itemName, machineId);
+
+        const outputs = Object.keys(node.allOutputs).map(out => ({
+            itemName: out,
+            rate: node.allOutputs[out] * node.count
+        }));
+
+        const recycledSourceItem = Object.keys(node.allOutputs).find(out => {
+            const source = byproductSource[out];
+            return source && source.recipeId === node.recipeId;
+        });
+        const recycledSourceColor = recycledSourceItem ? '#698114' : null;
+
+        nodes.push({
+            id: machineId,
+            kind: 'machine',
+            label: node.machine,
+            itemName,
+            recipeId: node.recipeId,
+            count: Math.ceil(node.count - 1e-9),
+            exactCount: node.count,
+            outputs,
+            inputSummary: node.inputs.map(inp => inp.itemName).join(', '),
+            isShared, sharedColor, recycledSourceColor
+        });
+
+        if (parentNodeId) {
+            edges.push({ from: machineId, to: parentNodeId, itemName, rate: requiredRate });
+        }
+
+        node.inputs.forEach(input => {
+            buildGraphData(
+                treeData, input.itemName, input.rate, flowTotals,
+                branchVisited, rendered, sharedItems,
+                byproductSupplied, byproductSource, renderedRecipes,
+                nodes, edges, nodeIdForItem, nodeIdForRecipe, machineId
+            );
+        });
+    });
+
+    return firstNodeIdForThisItem;
+}
+
+function buildGraphDataRoot(data, target) {
+    buildGraphData._idCounter = 0;
+
+    const nodes = [];
+    const edges = [];
+
+    buildGraphData(
+        data.treeData, target, data.flowTotals[target], data.flowTotals,
+        new Set(), new Set(), data.sharedItems,
+        data.byproductSupplied, data.byproductSource, new Set(),
+        nodes, edges, new Map(), new Map(), null
+    );
+
+    return { nodes, edges, target };
+}
+
+
+// =========================================================
+// GRAPHIC DAG — DAGRE LAYOUT + SVG RENDER
+// =========================================================
+
+const NODE_W = 220;
+const NODE_H_MACHINE = 88;
+const NODE_H_LEAF = 46;
+
+function hexToRgbaShared(hex, alpha) {
+    if (!hex || hex[0] !== '#') return `rgba(255,255,255,${alpha})`;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function svgEsc(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+// Truncate a label to fit the node width instead of overflowing/wrapping —
+// full text is always available via <title> tooltip.
+function fitLabel(str, maxChars) {
+    const s = String(str);
+    return s.length > maxChars ? s.slice(0, maxChars - 1) + '…' : s;
+}
+
+function renderGraphDAG(container, graphData, isAdvanced) {
+    if (container._dagCleanup) {
+        container._dagCleanup();
+        container._dagCleanup = null;
+    }
+    container.innerHTML = "";
+
+    if (typeof dagre === 'undefined') {
+        container.innerHTML = `
+            <div style="padding:30px; color:var(--danger); font-family:monospace;">
+                Graph layout library failed to load (no network access?).
+                Try the Text Tree view instead.
+            </div>
+        `;
+        return;
+    }
+
+    // multigraph: true — two distinct items can each create an edge
+    // between the SAME pair of nodes (e.g. a co-product recipe feeding
+    // two different inputs of the same downstream machine), which
+    // requires named parallel edges. Without this, setEdge() throws.
+    const g = new dagre.graphlib.Graph({ multigraph: true });
+    g.setGraph({ rankdir: 'LR', nodesep: 26, ranksep: 70, marginx: 20, marginy: 20 });
+    g.setDefaultEdgeLabel(() => ({}));
+
+    graphData.nodes.forEach(node => {
+        const h = node.kind === 'machine' ? NODE_H_MACHINE : NODE_H_LEAF;
+        g.setNode(node.id, { width: NODE_W, height: h, node });
+    });
+
+    graphData.edges.forEach((edge, i) => {
+        g.setEdge(edge.from, edge.to, { edge }, `e${i}`);
+    });
+
+    dagre.layout(g);
+
+    const graphInfo = g.graph();
+    const totalW = graphInfo.width || 800;
+    const totalH = graphInfo.height || 400;
+
+    let defs = `
+        <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 Z" fill="#f0d58a"></path>
+            </marker>
+        </defs>
+    `;
+
+    // ---- EDGES ----
+    let edgesHtml = '';
+    g.edges().forEach(e => {
+        const edgeData = g.edge(e).edge;
+        const points = g.edge(e).points;
+
+        const path = points.map((p, i) =>
+            (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)
+        ).join(' ');
+
+        const stroke = edgeData.isSharedEdge
+            ? edgeData.sharedColor
+            : '#e6d9b0';
+        const width = edgeData.isSharedEdge ? 2.8 : 2;
+        const dash = edgeData.isSharedEdge ? '' : '';
+
+        const rateLabel = isAdvanced
+            ? `${edgeData.rate.toFixed(2)}/s ${edgeData.itemName}`
+            : edgeData.itemName;
+
+        const mid = points[Math.floor(points.length / 2)];
+
+        edgesHtml += `
+            <g class="dag-edge">
+                <path d="${path}" fill="none" stroke="${stroke}" stroke-width="${width}" marker-end="url(#arrowhead)" opacity="0.85"></path>
+                <title>${svgEsc(rateLabel)}</title>
+            </g>
+        `;
+    });
+
+    // ---- NODES ----
+    let nodesHtml = '';
+    g.nodes().forEach(nId => {
+        const gNode = g.node(nId);
+        const node = gNode.node;
+        const x = gNode.x - gNode.width / 2;
+        const y = gNode.y - gNode.height / 2;
+        const w = gNode.width;
+        const h = gNode.height;
+
+        // Neutral dark gray/black fills — deliberately not the app's
+        // warm --card tone, so the graph reads as black/gray like the
+        // text tree's surface rather than picking up an amber tint.
+        const fill = node.kind === 'machine' ? '#1c1c1c' : '#101010';
+        let borderColor = 'var(--grey)';
+        if (node.kind === 'raw') borderColor = '#3498db';
+        if (node.kind === 'recycled') borderColor = node.sharedColor || 'var(--success)';
+        if (node.kind === 'cycle') borderColor = 'var(--danger)';
+        if (node.recycledSourceColor) borderColor = '#698114';
+        if (node.isShared && node.sharedColor) borderColor = node.sharedColor;
+
+        const glow = node.isShared || node.recycledSourceColor
+            ? `filter: drop-shadow(0 0 3px ${hexToRgbaShared(node.recycledSourceColor || node.sharedColor || '#ffffff', 0.6)});`
+            : '';
+
+        if (node.kind === 'machine') {
+            const rateStr = isAdvanced
+                ? node.outputs.map(o => `${o.rate.toFixed(2)} ${o.itemName}/s`).join(', ')
+                : node.outputs.map(o => o.itemName).join(', ');
+            const inputStr = node.inputSummary || 'NONE';
+
+            nodesHtml += `
+                <g class="dag-node" data-node-id="${svgEsc(node.id)}" transform="translate(${x},${y})">
+                    <rect width="${w}" height="${h}" rx="6" fill="${fill}" stroke="${borderColor}" stroke-width="${node.isShared || node.recycledSourceColor ? 2.4 : 1.5}" style="${glow}"></rect>
+                    <text x="10" y="20" fill="var(--accent)" font-family="monospace" font-weight="bold" font-size="13">
+                        ${svgEsc(node.count)}x <tspan fill="var(--text)">${svgEsc(fitLabel(node.label.toUpperCase(), 22))}</tspan>
+                    </text>
+                    <text x="10" y="38" fill="var(--success)" font-family="monospace" font-size="10.5">
+                        OUT: ${svgEsc(fitLabel(rateStr, 26))}
+                    </text>
+                    <text x="10" y="54" fill="#f4a261" font-family="monospace" font-size="9.5">
+                        IN: ${svgEsc(fitLabel(inputStr, 30))}
+                    </text>
+                    ${node.isShared ? `<text x="${w - 10}" y="16" fill="${node.sharedColor}" font-family="monospace" font-size="9" text-anchor="end">⑂ shared</text>` : ''}
+                    <title>${svgEsc(node.label)} — exact ${node.exactCount.toFixed(4)}x needed
+Outputs: ${svgEsc(node.outputs.map(o => o.itemName + ' (' + o.rate.toFixed(3) + '/s)').join(', '))}
+Inputs: ${svgEsc(inputStr)}</title>
+                </g>
+            `;
+        } else {
+            let icon = '';
+            let textColor = '#3498db';
+            let extra = '';
+            if (node.kind === 'recycled') { icon = '♻ '; textColor = node.sharedColor || 'var(--success)'; extra = `from ${node.sourceMachine}`; }
+            if (node.kind === 'raw') { icon = '[RAW] '; extra = node.partialRecycle ? `partly recycled from ${node.partialRecycle.machine}` : ''; }
+            if (node.kind === 'cycle') { icon = '[CYCLE] '; textColor = 'var(--danger)'; }
+
+            const rateStr = isAdvanced ? ` (${node.rate.toFixed(2)}/s)` : '';
+
+            nodesHtml += `
+                <g class="dag-node" transform="translate(${x},${y})">
+                    <rect width="${w}" height="${h}" rx="6" fill="${fill}" stroke="${borderColor}" stroke-width="${node.isShared ? 2 : 1.5}" stroke-dasharray="${node.kind === 'raw' || node.kind === 'cycle' ? '4,2' : ''}" style="${glow}"></rect>
+                    <text x="10" y="18" fill="${textColor}" font-family="monospace" font-weight="bold" font-size="12">
+                        ${icon}${svgEsc(fitLabel(node.itemName, 24))}
+                    </text>
+                    ${extra ? `<text x="10" y="34" fill="#888" font-family="monospace" font-size="9.5">${svgEsc(fitLabel(extra, 30))}</text>` : ''}
+                    <title>${svgEsc(node.itemName)}${svgEsc(rateStr)}${extra ? ' — ' + svgEsc(extra) : ''}</title>
+                </g>
+            `;
+        }
+    });
+
+    const svg = `
+        <svg id="dagSvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="display:block; user-select:none; -webkit-user-select:none; -moz-user-select:none;">
+            ${defs}
+            <g id="dagViewport">
+                ${edgesHtml}
+                ${nodesHtml}
+            </g>
+        </svg>
+    `;
+
+    container.innerHTML = svg;
+    initDagPanZoom(container, totalW, totalH);
+}
+
+
+// ---- PAN & ZOOM ----
+// Simple pointer-drag pan + wheel/pinch zoom on the <g id="dagViewport">
+// transform. No dependency — plain pointer events, works for mouse,
+// touch, and trackpad alike.
+//
+// COORDINATE SPACE: the <svg> deliberately has NO viewBox (see
+// renderGraphDAG) — it's sized to 100%/100% of its container, so one
+// SVG unit === one CSS pixel. That's what lets panX/panY (derived
+// straight from clientX/clientY deltas) map 1:1 onto the transform
+// with no scale-factor mismatch. A viewBox here would put the
+// transform in a different coordinate system than the pointer
+// events, which is what made panning feel unreliable before.
+
+function initDagPanZoom(container, contentW, contentH) {
+    const svg = container.querySelector('#dagSvg');
+    const viewport = container.querySelector('#dagViewport');
+    if (!svg || !viewport) return;
+
+    let scale = 1;
+    let panX = 0;
+    let panY = 0;
+
+    // Fit the whole graph in view on first render, with generous
+    // headroom — bias toward "readable" over "everything crammed
+    // in", and never shrink below a legible floor.
+    const wrapRect = container.getBoundingClientRect();
+    const availW = wrapRect.width || 900;
+    const availH = wrapRect.height || 500;
+    const PADDING = 60;
+    const fitScale = Math.min(
+        (availW - PADDING) / contentW,
+        (availH - PADDING) / contentH,
+        1.4
+    );
+    const initialScale = Math.min(Math.max(fitScale, 0.4), 1.4);
+
+    function resetView() {
+        scale = initialScale;
+        panX = (availW - contentW * scale) / 2;
+        panY = (availH - contentH * scale) / 2;
+    }
+    resetView();
+
+    function applyTransform() {
+        viewport.setAttribute('transform', `translate(${panX},${panY}) scale(${scale})`);
+    }
+    applyTransform();
+
+    let isPanning = false;
+    let didDrag = false;
+    let startX = 0, startY = 0, startPanX = 0, startPanY = 0;
+
+    svg.addEventListener('pointerdown', e => {
+        // Only left-click / primary touch starts a pan.
+        if (e.button !== undefined && e.button !== 0) return;
+        isPanning = true;
+        didDrag = false;
+        startX = e.clientX;
+        startY = e.clientY;
+        startPanX = panX;
+        startPanY = panY;
+        try { svg.setPointerCapture(e.pointerId); } catch (err) { /* not supported; fall back to plain listeners */ }
+        svg.style.cursor = 'grabbing';
+    });
+
+    svg.addEventListener('pointermove', e => {
+        if (!isPanning) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) didDrag = true;
+        panX = startPanX + dx;
+        panY = startPanY + dy;
+        applyTransform();
+    });
+
+    function endPan(e) {
+        if (!isPanning) return;
+        isPanning = false;
+        svg.style.cursor = 'grab';
+        try { svg.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
+    }
+    svg.addEventListener('pointerup', endPan);
+    svg.addEventListener('pointercancel', endPan);
+    // Backstop: if pointer capture silently failed and the button is
+    // released outside the SVG, this still catches it. Removed when
+    // this graph is torn down (see below) to avoid piling up stale
+    // listeners across repeated "Run Simulation" calls.
+    window.addEventListener('pointerup', endPan);
+    container._dagCleanup = () => window.removeEventListener('pointerup', endPan);
+
+    svg.style.cursor = 'grab';
+
+    svg.addEventListener('wheel', e => {
+        e.preventDefault();
+        const rect = svg.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        const zoomFactor = Math.pow(1.0015, -e.deltaY);
+        const newScale = Math.min(Math.max(scale * zoomFactor, 0.25), 3.5);
+
+        // Zoom centered on cursor position — keep the point under the
+        // cursor fixed in place while scale changes.
+        panX = mouseX - ((mouseX - panX) / scale) * newScale;
+        panY = mouseY - ((mouseY - panY) / scale) * newScale;
+        scale = newScale;
+
+        applyTransform();
+    }, { passive: false });
+
+    // Expose zoom controls for the +/-/reset buttons.
+    container._dagZoomIn = () => {
+        const cx = availW / 2, cy = availH / 2;
+        const newScale = Math.min(scale * 1.3, 3.5);
+        panX = cx - ((cx - panX) / scale) * newScale;
+        panY = cy - ((cy - panY) / scale) * newScale;
+        scale = newScale;
+        applyTransform();
+    };
+    container._dagZoomOut = () => {
+        const cx = availW / 2, cy = availH / 2;
+        const newScale = Math.max(scale * 0.77, 0.25);
+        panX = cx - ((cx - panX) / scale) * newScale;
+        panY = cy - ((cy - panY) / scale) * newScale;
+        scale = newScale;
+        applyTransform();
+    };
+    container._dagZoomReset = () => {
+        resetView();
+        applyTransform();
+    };
 }
 
 function escapeHtml(str) {
