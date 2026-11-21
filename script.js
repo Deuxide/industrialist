@@ -429,6 +429,8 @@ function setDagView(view) {
 
     // Lazily render the graphic view the first time it's switched to,
     // using whatever data is currently cached from the last run.
+    // (renderGraphDAG is async: it shows a "Laying out…" state, loads
+    // ELK on first use, and ignores itself if superseded.)
     if (view === 'graphic' && lastGraphData) {
         const graphContainer = document.getElementById('machineGraph');
         const isAdvanced = document.getElementById('advancedToggle')?.checked || false;
@@ -481,7 +483,12 @@ function calculateAll(rerollColors = false) {
     const graphContainer = document.getElementById('machineGraph');
 
     container.innerHTML = "";
-    if (graphContainer) graphContainer.innerHTML = "";
+    if (graphContainer) {
+        // Layout is async: drop any in-flight render so a stale graph
+        // can't be mounted after we clear the container.
+        cancelDagRender(graphContainer);
+        graphContainer.innerHTML = "";
+    }
 
     // Re-roll only for a fresh calculation. Toggling Advanced View
     // redraws the same DAG and should not change its color mapping.
@@ -2100,12 +2107,14 @@ function buildGraphDataRoot(data, target) {
 
 
 // =========================================================
-// GRAPHIC DAG — DAGRE LAYOUT + SVG RENDER
+// GRAPHIC DAG — ELK LAYOUT + SVG RENDER
 // =========================================================
-
-const NODE_W = 220;
-const NODE_H_MACHINE = 88;
-const NODE_H_LEAF = 46;
+//
+// Geometry (node boxes + routed edge polylines) comes from
+// dag-layout.js, which runs ELK's layered algorithm with orthogonal
+// routing and fixed-side ports. This section turns that geometry into
+// SVG. Visual styling lives in style.css (classes + --dag-* variables);
+// the only inline styling is the per-item colour (--item-color).
 
 function hexToRgbaShared(hex, alpha) {
     if (!hex || hex[0] !== '#') return `rgba(255,255,255,${alpha})`;
@@ -2127,313 +2136,305 @@ function fitLabel(str, maxChars) {
     return s.length > maxChars ? s.slice(0, maxChars - 1) + '…' : s;
 }
 
-function renderGraphDAG(container, graphData, isAdvanced) {
-    if (container._dagCleanup) {
+// Fallback colour for a recycle edge with no per-item colour (rare:
+// buildGraphData always sets one).
+const DAG_RECYCLE_DEFAULT = '#7fd858';
+
+// ---- ELK engine loading ------------------------------------------------
+//
+// ELK is ~1.6 MB, so it is loaded the first time the Graphic tab is
+// rendered, not on page load. The promise is cached; a failed load
+// clears the cache so a later attempt can retry.
+
+let _elkPromise = null;
+
+function ensureElk() {
+    if (_elkPromise) return _elkPromise;
+
+    _elkPromise = new Promise((resolve, reject) => {
+        if (typeof DagLayout === 'undefined') {
+            reject(new Error('dag-layout.js did not load'));
+            return;
+        }
+        if (typeof ELK !== 'undefined') {
+            resolve(new ELK());
+            return;
+        }
+        const s = document.createElement('script');
+        s.src = 'vendor/elk.bundled.js';
+        s.onload = () => {
+            if (typeof ELK === 'undefined') {
+                reject(new Error('ELK loaded but did not define a global'));
+            } else {
+                resolve(new ELK());
+            }
+        };
+        s.onerror = () => reject(new Error('Could not load vendor/elk.bundled.js'));
+        document.head.appendChild(s);
+    });
+
+    _elkPromise.catch(() => { _elkPromise = null; });
+    return _elkPromise;
+}
+
+// ---- render orchestration ----------------------------------------------
+//
+// Layout is asynchronous, so every render takes a token. If a newer
+// render (or a cancel from calculateAll) happens while a layout is
+// pending, the older one sees a stale token and mounts nothing.
+
+let dagRenderToken = 0;
+
+function cancelDagRender(container) {
+    dagRenderToken++;
+    if (container && container._dagCleanup) {
         container._dagCleanup();
         container._dagCleanup = null;
     }
-    container.innerHTML = "";
+}
 
-    if (typeof dagre === 'undefined') {
-        container.innerHTML = `
-            <div style="padding:30px; color:var(--danger); font-family:monospace;">
-                Graph layout library failed to load (no network access?).
-                Try the Text Tree view instead.
-            </div>
-        `;
+function showDagMessage(container, html, isError) {
+    container.innerHTML =
+        `<div class="dag-status${isError ? ' dag-status--error' : ''}">${html}</div>`;
+}
+
+async function renderGraphDAG(container, graphData, isAdvanced) {
+    cancelDagRender(container);
+    const token = dagRenderToken;
+
+    showDagMessage(container, 'Laying out graph…');
+
+    let layout;
+    try {
+        const elk = await ensureElk();
+        DagLayout.setElk(elk);
+        layout = await DagLayout.layoutGraph(graphData);
+    } catch (err) {
+        if (token !== dagRenderToken) return;
+        console.error(err);
+        showDagMessage(
+            container,
+            `Graph layout failed to load (${escapeHtml(err.message || err)}).<br>` +
+            `<button type="button" class="tiny-btn dag-fallback-btn" onclick="setDagView('text')">` +
+            `Switch to Text Tree</button>`,
+            true
+        );
         return;
     }
 
-    // multigraph: true — two distinct items can each create an edge
-    // between the SAME pair of nodes (e.g. a co-product recipe feeding
-    // two different inputs of the same downstream machine), which
-    // requires named parallel edges. Without this, setEdge() throws.
-    const g = new dagre.graphlib.Graph({ multigraph: true });
-    g.setGraph({ rankdir: 'LR', nodesep: 26, ranksep: 70, marginx: 20, marginy: 20 });
-    g.setDefaultEdgeLabel(() => ({}));
+    if (token !== dagRenderToken) return; // superseded while laying out
 
-    graphData.nodes.forEach(node => {
-        const h = node.kind === 'machine' ? NODE_H_MACHINE : NODE_H_LEAF;
-        g.setNode(node.id, { width: NODE_W, height: h, node });
-    });
+    try {
+        container.innerHTML = buildDagSvg(graphData, layout, isAdvanced);
+        initDagPanZoom(container, layout.width, layout.height);
+    } catch (err) {
+        console.error(err);
+        showDagMessage(
+            container,
+            `Could not draw the graph (${escapeHtml(err.message || err)}).<br>` +
+            `<button type="button" class="tiny-btn dag-fallback-btn" onclick="setDagView('text')">` +
+            `Switch to Text Tree</button>`,
+            true
+        );
+    }
+}
 
-    graphData.edges.forEach((edge, i) => {
-        g.setEdge(edge.from, edge.to, { edge }, `e${i}`);
-    });
+// ---- SVG building ------------------------------------------------------
 
-    dagre.layout(g);
+function dagMarkerId(kind, color) {
+    return `arrowhead-${kind}-${String(color).replace(/[^a-zA-Z0-9]/g, '_')}`;
+}
 
-    const graphInfo = g.graph();
-    const totalW = graphInfo.width || 800;
-    const totalH = graphInfo.height || 400;
+// Colour that outlines / tints a node: a shared item's colour wins,
+// then the colour of the byproduct it recycles; leaves fall back to
+// their own shared colour.
+function dagNodeItemColor(node) {
+    return (node.isShared && node.sharedColor) ||
+        node.recycledSourceColor ||
+        (node.kind !== 'machine' ? node.sharedColor : null) ||
+        null;
+}
 
-    // Recycle edges get their own arrowhead colors (suffixed so a
-    // shared item that's ALSO a recycle source doesn't collide with
-    // its plain shared-edge marker), plus one fixed ♻-colored marker
-    // used when a recycle edge has no specific shared color.
-    const RECYCLE_DEFAULT = '#7fd858';
-
-    const plainColors = new Set(
-        g.edges().map(e => {
-            const edgeData = g.edge(e).edge;
-            if (edgeData.isRecycleEdge) return null;
-            return edgeData.isSharedEdge && edgeData.sharedColor
-                ? edgeData.sharedColor
-                : '#e6d9b0';
-        }).filter(Boolean)
-    );
-
-    const recycleColors = new Set(
-        g.edges().map(e => {
-            const edgeData = g.edge(e).edge;
-            if (!edgeData.isRecycleEdge) return null;
-            return edgeData.sharedColor || RECYCLE_DEFAULT;
-        }).filter(Boolean)
-    );
-
-    const markerDefs = [
-        ...[...plainColors].map(color => {
-            const markerId = `arrowhead-${color.replace(/[^a-zA-Z0-9]/g, '_')}`;
-            return `
-                <marker id="${markerId}" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse">
-                    <path d="M0,0 L10,5 L0,10 Z" fill="${color}"></path>
-                </marker>
-            `;
-        }),
-        // Recycle arrowheads are a distinct hollow chevron shape (not a
-        // solid triangle) so they read as "different kind of edge" even
-        // at a glance, before the color or dash registers.
-        ...[...recycleColors].map(color => {
-            const markerId = `arrowhead-recycle-${color.replace(/[^a-zA-Z0-9]/g, '_')}`;
-            return `
-                <marker id="${markerId}" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto-start-reverse">
-                    <path d="M0,0 L10,5 L0,10 M0,5 L10,5" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path>
-                </marker>
-            `;
-        })
-    ].join('');
-
-    let defs = `<defs>${markerDefs}</defs>`;
-
-    // ---- EDGES ----
-    // Draw recycle edges FIRST (so plain edges layer visually on top
-    // and stay easy to trace), then plain/shared edges.
-    let recycleEdgesHtml = '';
-    let plainEdgesHtml = '';
-
-    g.edges().forEach((e, i) => {
-        const edgeData = g.edge(e).edge;
-        const sourceNode = g.node(e.v);
-        const targetNode = g.node(e.w);
-
-        const isBackward = sourceNode.x > targetNode.x;
-
-        if (edgeData.isRecycleEdge) {
-            // ---- RECYCLE EDGE: dashed elbow, its own marker + label ----
-            //
-            // Same straight elbow routing as a plain edge (exit the
-            // source's facing side, short horizontal lead, vertical jog,
-            // enter the target's facing side) — just dashed, its own
-            // arrowhead, and a "♻ item" label at the elbow's midpoint so
-            // a byproduct feeding back into an earlier machine still
-            // reads as a distinct kind of edge, not a full loop-the-node
-            // arc.
-            const sourceExitX = isBackward
-                ? sourceNode.x - sourceNode.width / 2
-                : sourceNode.x + sourceNode.width / 2;
-            const targetEntryX = isBackward
-                ? targetNode.x + targetNode.width / 2
-                : targetNode.x - targetNode.width / 2;
-
-            const sourceOffset = sourceNode.height * 0.18 * (targetNode.y >= sourceNode.y ? 1 : -1);
-            const targetOffset = targetNode.height * 0.18 * (sourceNode.y >= targetNode.y ? 1 : -1);
-            const sourceY = sourceNode.y + sourceOffset;
-            const targetY = targetNode.y + targetOffset;
-
-            // Wider, more spread-out random-ish offset than plain edges
-            // use, so a recycle edge sharing a rough path with other
-            // edges is less likely to sit directly on top of them.
-            const elbowOffset = 34 + ((e.v.length * 7 + e.w.length * 13 + i * 5) % 22) * 4;
-
-            const horizontalLead = isBackward ? -elbowOffset : elbowOffset;
-            const jogX = sourceExitX + horizontalLead;
-
-            // Guarantee the FINAL segment (the one the arrowhead sits
-            // on) is a real, minimum-length horizontal run pointing the
-            // correct direction into the target. Without this, whenever
-            // the target happens to sit close to (or past) the jog's X
-            // position, that last segment collapses to near-zero or
-            // flips sign — and SVG's auto-start-reverse then orients the
-            // arrowhead off the PRECEDING (vertical) segment instead,
-            // making it point up/down rather than at the target.
-            const MIN_FINAL_RUN = 26;
-            const finalDir = isBackward ? -1 : 1; // which way "into the target" points
-            let jogXClamped = jogX;
-            if (finalDir > 0 && jogXClamped > targetEntryX - MIN_FINAL_RUN) {
-                jogXClamped = targetEntryX - MIN_FINAL_RUN;
-            } else if (finalDir < 0 && jogXClamped < targetEntryX + MIN_FINAL_RUN) {
-                jogXClamped = targetEntryX + MIN_FINAL_RUN;
-            }
-
-            const path = `M ${sourceExitX.toFixed(1)} ${sourceY.toFixed(1)} L ${jogXClamped.toFixed(1)} ${sourceY.toFixed(1)} L ${jogXClamped.toFixed(1)} ${targetY.toFixed(1)} L ${targetEntryX.toFixed(1)} ${targetY.toFixed(1)}`;
-
-            const stroke = edgeData.sharedColor || RECYCLE_DEFAULT;
-            const arrowId = `arrowhead-recycle-${stroke.replace(/[^a-zA-Z0-9]/g, '_')}`;
-
-            const rateLabel = isAdvanced
-                ? `♻ recycled: ${edgeData.rate.toFixed(2)}/s ${edgeData.itemName}`
-                : `♻ recycled ${edgeData.itemName}`;
-
-            const labelText = isAdvanced
-                ? `♻ ${edgeData.itemName} ${edgeData.rate.toFixed(2)}/s`
-                : `♻ ${edgeData.itemName}`;
-            const labelW = Math.min(180, 14 + labelText.length * 6.1);
-            // Sit the label just above the elbow's vertical segment,
-            // rather than centered on top of the line itself, so it
-            // doesn't overlap the path or the arrowhead.
-            const labelX = jogXClamped;
-            const labelY = (sourceY + targetY) / 2 - 14;
-
-            recycleEdgesHtml += `
-                <g class="dag-edge dag-edge-recycle">
-                    <path d="${path}" fill="none" stroke="${stroke}" stroke-width="2.2" stroke-dasharray="7,5" marker-end="url(#${arrowId})" opacity="0.9"></path>
-                    <title>${svgEsc(rateLabel)}</title>
-                </g>
-                <g class="dag-edge-label" transform="translate(${(labelX - labelW / 2).toFixed(1)},${(labelY - 9).toFixed(1)})" pointer-events="none">
-                    <rect width="${labelW.toFixed(1)}" height="18" rx="9" fill="#101410" stroke="${stroke}" stroke-width="1" opacity="0.92"></rect>
-                    <text x="${(labelW / 2).toFixed(1)}" y="13" fill="${stroke}" font-family="monospace" font-size="10" font-weight="bold" text-anchor="middle">${svgEsc(fitLabel(labelText, 26))}</text>
-                </g>
-            `;
-            return;
+function buildDagMarkerDefs(graphData) {
+    const plainColors = new Set();
+    const recycleColors = new Set();
+    graphData.edges.forEach(edge => {
+        if (edge.isRecycleEdge) {
+            recycleColors.add(edge.sharedColor || DAG_RECYCLE_DEFAULT);
+        } else if (edge.isSharedEdge && edge.sharedColor) {
+            plainColors.add(edge.sharedColor);
         }
-
-        // ---- PLAIN / SHARED EDGE (unchanged elbow routing) ----
-        const sourceExitX = isBackward
-            ? sourceNode.x - sourceNode.width / 2
-            : sourceNode.x + sourceNode.width / 2;
-        const targetEntryX = isBackward
-            ? targetNode.x + targetNode.width / 2
-            : targetNode.x - targetNode.width / 2;
-
-        const sourceOffset = sourceNode.height * 0.18 * (targetNode.y >= sourceNode.y ? 1 : -1);
-        const targetOffset = targetNode.height * 0.18 * (sourceNode.y >= targetNode.y ? 1 : -1);
-        const sourceY = sourceNode.y + sourceOffset;
-        const targetY = targetNode.y + targetOffset;
-        // Wider spread than before (was 18 + (0..11)*2.5, max 45.5) so
-        // elbows sharing a similar path are less likely to overlap.
-        const elbowOffset = 24 + ((e.v.length * 7 + e.w.length * 13 + i * 5) % 22) * 4;
-
-        const horizontalLead = isBackward ? -elbowOffset : elbowOffset;
-        const path = `M ${sourceExitX.toFixed(1)} ${sourceY.toFixed(1)} L ${(sourceExitX + horizontalLead).toFixed(1)} ${sourceY.toFixed(1)} L ${(sourceExitX + horizontalLead).toFixed(1)} ${targetY.toFixed(1)} L ${targetEntryX.toFixed(1)} ${targetY.toFixed(1)}`;
-
-        const stroke = edgeData.isSharedEdge
-            ? edgeData.sharedColor || '#e6d9b0'
-            : '#e6d9b0';
-        const width = edgeData.isSharedEdge ? 2.8 : 2;
-        const arrowId = `arrowhead-${stroke.replace(/[^a-zA-Z0-9]/g, '_')}`;
-
-        const rateLabel = isAdvanced
-            ? `${edgeData.rate.toFixed(2)}/s ${edgeData.itemName}`
-            : edgeData.itemName;
-
-        plainEdgesHtml += `
-            <g class="dag-edge">
-                <path d="${path}" fill="none" stroke="${stroke}" stroke-width="${width}" marker-end="url(#${arrowId})" opacity="0.85"></path>
-                <title>${svgEsc(rateLabel)}</title>
-            </g>
-        `;
     });
 
-    const edgesHtml = recycleEdgesHtml + plainEdgesHtml;
+    // Default (uncoloured) arrowhead follows the theme variable.
+    let defs = `
+        <marker id="arrowhead-plain" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 Z" style="fill:var(--dag-edge)"></path>
+        </marker>`;
 
-    // ---- NODES ----
-    let nodesHtml = '';
-    g.nodes().forEach(nId => {
-        const gNode = g.node(nId);
-        const node = gNode.node;
-        const x = gNode.x - gNode.width / 2;
-        const y = gNode.y - gNode.height / 2;
-        const w = gNode.width;
-        const h = gNode.height;
+    plainColors.forEach(color => {
+        defs += `
+        <marker id="${dagMarkerId('shared', color)}" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 Z" fill="${svgEsc(color)}"></path>
+        </marker>`;
+    });
 
-        // Neutral dark gray/black fills — deliberately not the app's
-        // warm --card tone, so the graph reads as black/gray like the
-        // text tree's surface rather than picking up an amber tint.
-        const fill = node.kind === 'machine' ? '#1c1c1c' : '#101010';
-        let borderColor = 'var(--grey)';
-        if (node.kind === 'raw') borderColor = node.recycledSourceColor || '#3498db';
-        if (node.kind === 'recycled') borderColor = node.sharedColor || 'var(--success)';
-        if (node.kind === 'cycle') borderColor = 'var(--danger)';
-        if (node.recycledSourceColor) borderColor = node.recycledSourceColor;
-        if (node.isShared && node.sharedColor) borderColor = node.sharedColor;
+    // Recycle arrowheads are a hollow chevron so they read as a
+    // different kind of edge before the colour or dash registers.
+    recycleColors.forEach(color => {
+        defs += `
+        <marker id="${dagMarkerId('recycle', color)}" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 M0,5 L10,5" fill="none" stroke="${svgEsc(color)}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path>
+        </marker>`;
+    });
 
-        const glow = node.isShared || node.recycledSourceColor
-            ? `filter: drop-shadow(0 0 3px ${hexToRgbaShared(node.recycledSourceColor || node.sharedColor || '#ffffff', 0.6)});`
-            : '';
+    return `<defs>${defs}</defs>`;
+}
 
-        if (node.kind === 'machine') {
-            const rateStr = isAdvanced
-                ? node.outputs.map(o => `${o.rate.toFixed(2)} ${o.itemName}/s`).join(', ')
-                : node.outputs.map(o => o.itemName).join(', ');
-            const inputStr = node.inputSummary || 'NONE';
+function dagEdgeTemplate(edge, index, points, isAdvanced) {
+    const d = DagLayout.roundedPath(points, 8);
+    if (!d) return { recycle: false, html: '' };
 
-            nodesHtml += `
-                <g class="dag-node" data-node-id="${svgEsc(node.id)}" transform="translate(${x},${y})">
-                    <rect width="${w}" height="${h}" rx="6" fill="${fill}" stroke="${borderColor}" stroke-width="${node.isShared || node.recycledSourceColor ? 2.4 : 1.5}" style="${glow}"></rect>
-                    <text x="10" y="20" fill="var(--accent)" font-family="monospace" font-weight="bold" font-size="13">
-                        ${svgEsc(node.count)}x <tspan fill="var(--text)">${svgEsc(fitLabel(node.label.toUpperCase(), 22))}</tspan>
-                    </text>
-                    <text x="10" y="38" fill="var(--success)" font-family="monospace" font-size="10.5">
-                        OUT: ${svgEsc(fitLabel(rateStr, 26))}
-                    </text>
-                    <text x="10" y="54" fill="#f4a261" font-family="monospace" font-size="9.5">
-                        IN: ${svgEsc(fitLabel(inputStr, 30))}
-                    </text>
-                    ${node.isShared ? `<text x="${w - 10}" y="16" fill="${node.sharedColor}" font-family="monospace" font-size="9" text-anchor="end">⑂ shared</text>` : ''}
-                    <title>${svgEsc(node.label)} — exact ${node.exactCount.toFixed(4)}x needed
+    const isRecycle = !!edge.isRecycleEdge;
+    const isShared = !isRecycle && !!edge.isSharedEdge;
+    const color = isRecycle
+        ? (edge.sharedColor || DAG_RECYCLE_DEFAULT)
+        : (isShared ? edge.sharedColor || null : null);
+
+    let marker = 'arrowhead-plain';
+    if (isRecycle) marker = dagMarkerId('recycle', color);
+    else if (isShared && color) marker = dagMarkerId('shared', color);
+
+    const classes = ['dag-edge'];
+    if (isRecycle) classes.push('dag-edge--recycle');
+    if (isShared) classes.push('dag-edge--shared');
+
+    const styleAttr = color ? ` style="--item-color:${svgEsc(color)}"` : '';
+
+    const rate = Number(edge.rate) || 0;
+    const tooltip = isRecycle
+        ? (isAdvanced
+            ? `♻ recycled: ${rate.toFixed(2)}/s ${edge.itemName}`
+            : `♻ recycled ${edge.itemName}`)
+        : (isAdvanced
+            ? `${rate.toFixed(2)}/s ${edge.itemName}`
+            : edge.itemName);
+
+    let html = `
+        <g class="${classes.join(' ')}" data-edge-id="e${index}" data-from="${svgEsc(edge.from)}" data-to="${svgEsc(edge.to)}" data-item="${svgEsc(edge.itemName)}"${styleAttr}>
+            <path d="${d}" marker-end="url(#${marker})"></path>
+            <title>${svgEsc(tooltip)}</title>
+        </g>`;
+
+    if (isRecycle) {
+        const labelText = isAdvanced
+            ? `♻ ${edge.itemName} ${rate.toFixed(2)}/s`
+            : `♻ ${edge.itemName}`;
+        const labelW = Math.min(180, 14 + labelText.length * 6.1);
+        const anchor = DagLayout.labelAnchor(points);
+        // Sit the pill just above the longest segment so it neither
+        // covers the line nor the arrowhead.
+        const lx = anchor.x - labelW / 2;
+        const ly = anchor.y - 9 - 14;
+        html += `
+        <g class="dag-edge-label" transform="translate(${lx.toFixed(1)},${ly.toFixed(1)})" pointer-events="none"${styleAttr}>
+            <rect width="${labelW.toFixed(1)}" height="18" rx="9"></rect>
+            <text x="${(labelW / 2).toFixed(1)}" y="13" text-anchor="middle">${svgEsc(fitLabel(labelText, 26))}</text>
+        </g>`;
+    }
+
+    return { recycle: isRecycle, html };
+}
+
+function dagNodeTemplate(node, box, isAdvanced) {
+    const { x, y, w, h } = box;
+    const itemColor = dagNodeItemColor(node);
+    const glowColor = node.recycledSourceColor || node.sharedColor || null;
+    const hasGlow = !!(node.isShared || node.recycledSourceColor);
+
+    const classes = ['dag-node', `dag-node--${node.kind}`];
+    if (node.isShared) classes.push('dag-node--shared');
+    if (node.recycledSourceColor) classes.push('dag-node--recycled');
+    if (hasGlow) classes.push('dag-node--glow');
+
+    const styleParts = [];
+    if (itemColor) styleParts.push(`--item-color:${svgEsc(itemColor)}`);
+    if (glowColor) styleParts.push(`--glow-color:${svgEsc(hexToRgbaShared(glowColor, 0.6))}`);
+    const styleAttr = styleParts.length ? ` style="${styleParts.join(';')}"` : '';
+
+    const attrs =
+        `class="${classes.join(' ')}" data-node-id="${svgEsc(node.id)}" data-kind="${svgEsc(node.kind)}"` +
+        ` transform="translate(${x.toFixed(1)},${y.toFixed(1)})"${styleAttr}`;
+
+    if (node.kind === 'machine') {
+        const outStr = isAdvanced
+            ? node.outputs.map(o => `${o.rate.toFixed(2)} ${o.itemName}/s`).join(', ')
+            : node.outputs.map(o => o.itemName).join(', ');
+        const inputStr = node.inputSummary || 'NONE';
+
+        return `
+        <g ${attrs}>
+            <rect width="${w}" height="${h}" rx="6"></rect>
+            <text class="dag-t-count" x="10" y="20">${svgEsc(node.count)}x <tspan class="dag-t-label">${svgEsc(fitLabel(node.label.toUpperCase(), 22))}</tspan></text>
+            <text class="dag-t-out" x="10" y="38">OUT: ${svgEsc(fitLabel(outStr, 26))}</text>
+            <text class="dag-t-in" x="10" y="54">IN: ${svgEsc(fitLabel(inputStr, 30))}</text>
+            ${node.isShared ? `<text class="dag-t-badge" x="${w - 10}" y="16" text-anchor="end">⑂ shared</text>` : ''}
+            <title>${svgEsc(node.label)} — exact ${node.exactCount.toFixed(4)}x needed
 Outputs: ${svgEsc(node.outputs.map(o => o.itemName + ' (' + o.rate.toFixed(3) + '/s)').join(', '))}
 Inputs: ${svgEsc(inputStr)}</title>
-                </g>
-            `;
-        } else {
-            let icon = '';
-            let textColor = '#3498db';
-            let extra = '';
-            if (node.kind === 'recycled') { icon = '♻ '; textColor = node.sharedColor || 'var(--success)'; extra = `from ${node.sourceMachine}`; }
-            if (node.kind === 'raw') {
-                icon = '[RAW] ';
-                textColor = node.recycledSourceColor || node.sharedColor || '#3498db';
-                extra = node.partialRecycle ? `partly recycled from ${node.partialRecycle.machine}` : '';
-            }
-            if (node.kind === 'cycle') { icon = '[CYCLE] '; textColor = 'var(--danger)'; }
+        </g>`;
+    }
 
-            const rateStr = isAdvanced ? ` (${node.rate.toFixed(2)}/s)` : '';
+    // Leaf nodes: raw materials and cycle markers.
+    let prefix = '';
+    let extra = '';
+    if (node.kind === 'raw') {
+        prefix = '[RAW] ';
+        extra = node.partialRecycle ? `partly recycled from ${node.partialRecycle.machine}` : '';
+    } else if (node.kind === 'cycle') {
+        prefix = '[CYCLE] ';
+    }
+    const rateStr = isAdvanced ? ` (${Number(node.rate).toFixed(2)}/s)` : '';
 
-            nodesHtml += `
-                <g class="dag-node" transform="translate(${x},${y})">
-                    <rect width="${w}" height="${h}" rx="6" fill="${fill}" stroke="${borderColor}" stroke-width="${node.isShared ? 2 : 1.5}" stroke-dasharray="${node.kind === 'raw' || node.kind === 'cycle' ? '4,2' : ''}" style="${glow}"></rect>
-                    <text x="10" y="18" fill="${textColor}" font-family="monospace" font-weight="bold" font-size="12">
-                        ${icon}${svgEsc(fitLabel(node.itemName, 24))}
-                    </text>
-                    ${extra ? `<text x="10" y="34" fill="#888" font-family="monospace" font-size="9.5">${svgEsc(fitLabel(extra, 30))}</text>` : ''}
-                    <title>${svgEsc(node.itemName)}${svgEsc(rateStr)}${extra ? ' — ' + svgEsc(extra) : ''}</title>
-                </g>
-            `;
-        }
+    return `
+        <g ${attrs}>
+            <rect width="${w}" height="${h}" rx="6"></rect>
+            <text class="dag-t-leaf" x="10" y="18">${prefix}${svgEsc(fitLabel(node.itemName, 24))}</text>
+            ${extra ? `<text class="dag-t-extra" x="10" y="34">${svgEsc(fitLabel(extra, 30))}</text>` : ''}
+            <title>${svgEsc(node.itemName)}${svgEsc(rateStr)}${extra ? ' — ' + svgEsc(extra) : ''}</title>
+        </g>`;
+}
+
+function buildDagSvg(graphData, layout, isAdvanced) {
+    // Recycle edges are drawn first so ordinary edges layer on top and
+    // stay easy to trace.
+    let recycleHtml = '';
+    let plainHtml = '';
+    graphData.edges.forEach((edge, i) => {
+        const points = layout.edges.get(`e${i}`);
+        if (!points || points.length < 2) return;
+        const out = dagEdgeTemplate(edge, i, points, isAdvanced);
+        if (out.recycle) recycleHtml += out.html;
+        else plainHtml += out.html;
     });
 
-    const svg = `
-        <svg id="dagSvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="display:block; user-select:none; -webkit-user-select:none; -moz-user-select:none;">
-            ${defs}
+    let nodesHtml = '';
+    graphData.nodes.forEach(node => {
+        const box = layout.nodes.get(node.id);
+        if (!box) return;
+        nodesHtml += dagNodeTemplate(node, box, isAdvanced);
+    });
+
+    return `
+        <svg id="dagSvg" class="dag-svg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="display:block; user-select:none; -webkit-user-select:none; -moz-user-select:none;">
+            ${buildDagMarkerDefs(graphData)}
             <g id="dagViewport">
-                ${edgesHtml}
+                ${recycleHtml}
+                ${plainHtml}
                 ${nodesHtml}
             </g>
         </svg>
     `;
-
-    container.innerHTML = svg;
-    initDagPanZoom(container, totalW, totalH);
 }
 
 

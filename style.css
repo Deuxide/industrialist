@@ -559,6 +559,20 @@ button:hover {
    box to pan/zoom *within* rather than an ever-expanding scrollable
    area. Hidden by default; JS toggles display alongside .dag-canvas. */
 .dag-graph-canvas {
+    /* Graph theme: every colour the SVG uses comes from here, so the
+       renderer carries no hard-coded colours. */
+    --dag-bg: #0a0a0a;
+    --dag-grid: #232323;
+    --dag-node-fill: #1c1c1c;
+    --dag-leaf-fill: #101010;
+    --dag-raw: #3498db;
+    --dag-edge: #e6d9b0;
+    --dag-recycle: #7fd858;
+    --dag-label-bg: #101410;
+    --dag-out: #698114;
+    --dag-in: #f4a261;
+    --dag-dim-text: #888888;
+
     display: none;
     width: 100%;
     height: 65vh;
@@ -566,15 +580,15 @@ button:hover {
     overflow: hidden;
     touch-action: none;
     border-radius: 0;
-    background: #0a0a0a;
+    background: var(--dag-bg);
     border: 1px solid rgba(237, 228, 189, 0.12);
 }
 
 .dag-graph-canvas svg {
     background:
-        linear-gradient(90deg, #232323 1px, transparent 1px) 0 0 / 24px 24px,
-        linear-gradient(#232323 1px, transparent 1px) 0 0 / 24px 24px;
-    background-color: #0a0a0a;
+        linear-gradient(90deg, var(--dag-grid) 1px, transparent 1px) 0 0 / 24px 24px,
+        linear-gradient(var(--dag-grid) 1px, transparent 1px) 0 0 / 24px 24px;
+    background-color: var(--dag-bg);
     user-select: none;
     -webkit-user-select: none;
     -moz-user-select: none;
@@ -587,17 +601,107 @@ button:hover {
     pointer-events: none;
 }
 
-/* Recycle (byproduct-feeds-backward) edges — dashed arcs with their
-   own chevron arrowhead and a pill label, kept visually distinct from
+/* ---- Graph nodes ------------------------------------------------
+   Colour comes from classes + variables. Per-item colours arrive as
+   --item-color (outline / tint) and --glow-color on the node. */
+.dag-node rect {
+    fill: var(--dag-node-fill);
+    stroke: var(--grey);
+    stroke-width: 1.5;
+}
+
+.dag-node--raw rect,
+.dag-node--cycle rect {
+    fill: var(--dag-leaf-fill);
+    stroke-dasharray: 4 2;
+}
+
+.dag-node--raw rect { stroke: var(--dag-raw); }
+.dag-node--cycle rect { stroke: var(--danger); }
+
+.dag-node[style*="--item-color"] rect { stroke: var(--item-color); }
+
+.dag-node--shared rect { stroke-width: 2.4; }
+.dag-node--recycled rect { stroke-width: 2.4; }
+.dag-node--raw.dag-node--shared rect,
+.dag-node--cycle.dag-node--shared rect { stroke-width: 2; }
+
+.dag-node--glow rect {
+    filter: drop-shadow(0 0 3px var(--glow-color, rgba(255, 255, 255, 0.6)));
+}
+
+.dag-svg text {
+    font-family: monospace;
+}
+
+.dag-t-count { fill: var(--accent); font-size: 13px; font-weight: bold; }
+.dag-t-label { fill: var(--text); }
+.dag-t-out { fill: var(--dag-out); font-size: 10.5px; }
+.dag-t-in { fill: var(--dag-in); font-size: 9.5px; }
+.dag-t-badge { fill: var(--item-color, var(--text)); font-size: 9px; }
+.dag-t-leaf { fill: var(--item-color, var(--dag-raw)); font-size: 12px; font-weight: bold; }
+.dag-node--cycle .dag-t-leaf { fill: var(--danger); }
+.dag-t-extra { fill: var(--dag-dim-text); font-size: 9.5px; }
+
+/* ---- Graph edges ------------------------------------------------- */
+.dag-edge path {
+    fill: none;
+    stroke: var(--dag-edge);
+    stroke-width: 2;
+    opacity: 0.85;
+}
+
+/* An item with several consumers: coloured, slightly heavier. */
+.dag-edge--shared path {
+    stroke: var(--item-color, var(--dag-edge));
+    stroke-width: 2.8;
+}
+
+/* Recycle (byproduct-feeds-backward) edges — dashed, with their own
+   chevron arrowhead and a pill label, kept visually distinct from
    ordinary shared-item edges so a loop reads as "recycled" at a
    glance rather than just another flow line. */
-.dag-edge-recycle path {
+.dag-edge--recycle path {
+    stroke: var(--item-color, var(--dag-recycle));
+    stroke-width: 2.2;
+    stroke-dasharray: 7 5;
+    opacity: 0.9;
     transition: opacity 0.15s;
 }
 
-.dag-edge-recycle:hover path {
-    opacity: 1 !important;
+.dag-edge--recycle:hover path {
+    opacity: 1;
     stroke-width: 3;
+}
+
+.dag-edge-label rect {
+    fill: var(--dag-label-bg);
+    stroke: var(--item-color, var(--dag-recycle));
+    stroke-width: 1;
+    opacity: 0.92;
+}
+
+.dag-edge-label text {
+    fill: var(--item-color, var(--dag-recycle));
+    font-size: 10px;
+    font-weight: bold;
+}
+
+/* ---- Layout status / fallback message ---------------------------- */
+.dag-status {
+    padding: 30px;
+    color: var(--text);
+    font-family: monospace;
+    opacity: 0.8;
+}
+
+.dag-status--error {
+    color: var(--danger);
+    opacity: 1;
+}
+
+.dag-fallback-btn {
+    margin-top: 12px;
 }
 
 .dag-zoom-controls {
