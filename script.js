@@ -34,7 +34,7 @@ function exportData() {
     const a = document.createElement('a');
 
     a.href = url;
-    a.download = `[]-recipe-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `industrialist-recipes-${new Date().toISOString().slice(0, 10)}.json`;
 
     document.body.appendChild(a);
     a.click();
@@ -50,7 +50,9 @@ function importData() {
     input.accept = '.json';
 
     input.onchange = e => {
-        const file = e.target.files[0];
+        const file = e.target.files && e.target.files[0];
+        if (!file) return; // dialog cancelled / no file chosen
+
         const reader = new FileReader();
 
         reader.onload = event => {
@@ -530,7 +532,7 @@ function calculateAll(rerollColors = false) {
             border-bottom:1px solid var(--secondary);
             margin-bottom:15px;
         ">
-            📦 ${target.toUpperCase()} PRODUCTION
+            📦 ${escapeHtml(target.toUpperCase())} PRODUCTION
         </div>
     `;
 
@@ -1330,13 +1332,9 @@ function renderNode(
     // not all lumped into one indistinguishable orange highlight.
     const sharedColor = isShared ? getSharedItemColor(itemName) : null;
 
-    // Convert hex to an rgba() background tint at low opacity.
-    function hexToRgba(hex, alpha) {
-        const r = parseInt(hex.slice(1, 3), 16);
-        const g = parseInt(hex.slice(3, 5), 16);
-        const b = parseInt(hex.slice(5, 7), 16);
-        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    }
+    // Convert hex to an rgba() background tint at low opacity
+    // (shared top-level helper, see hexToRgbaShared in the DAG section).
+    const hexToRgba = hexToRgbaShared;
 
     // Consistent highlight color used everywhere this item appears —
     // at its full expansion AND at every collapsed reference spot —
@@ -1406,7 +1404,7 @@ function renderNode(
             const anchorId = `node-recipe-${source.recipeId}`;
 
             const rateStr = isAdvanced
-                ? ` (${recycledAmount.toFixed(3)} ${itemName}/s)`
+                ? ` (${recycledAmount.toFixed(3)} ${escapeHtml(itemName)}/s)`
                 : "";
 
             return `
@@ -1420,12 +1418,12 @@ function renderNode(
                         ${prefix}${connector}
                     </span>
 
-                    <a href="#${anchorId}" style="color:${recycledColor}; font-weight:bold; text-decoration:none;" title="Jump to ${source.machineName}, which produces this as a byproduct">
-                        ♻ recycled from ${source.machineName.toUpperCase()}
+                    <a href="#${anchorId}" style="color:${recycledColor}; font-weight:bold; text-decoration:none;" title="Jump to ${escapeHtml(source.machineName)}, which produces this as a byproduct">
+                        ♻ recycled from ${escapeHtml(source.machineName.toUpperCase())}
                     </a>
 
                     <span style="color:${recycledColor};">
-                        ${itemName}${rateStr}
+                        ${escapeHtml(itemName)}${rateStr}
                     </span>
                 </div>
             `;
@@ -1455,11 +1453,11 @@ function renderNode(
                     <span style="color:#3498db;">[RAW]</span>
 
                     <span style="color:#3498db;">
-                        ${itemName}
+                        ${escapeHtml(itemName)}
                     </span>
 
-                    <a href="#${anchorId}" style="color:${recycledColor}; font-size:0.85em; text-decoration:none;" title="Jump to ${source.machineName}, which produces some of this as a byproduct">
-                        (♻ partly recycled from ${source.machineName.toUpperCase()}${rateStr})
+                    <a href="#${anchorId}" style="color:${recycledColor}; font-size:0.85em; text-decoration:none;" title="Jump to ${escapeHtml(source.machineName)}, which produces some of this as a byproduct">
+                        (♻ partly recycled from ${escapeHtml(source.machineName.toUpperCase())}${rateStr})
                     </a>
                 </div>
             `;
@@ -1474,7 +1472,7 @@ function renderNode(
         // of one resource you need to size for combined demand.
         const displayVal =
             isAdvanced
-                ? `${requiredRate.toFixed(3)} ${itemName}/s`
+                ? `${requiredRate.toFixed(3)} ${escapeHtml(itemName)}/s`
                 : itemName;
 
         const rawSharedBadge = isShared
@@ -1487,7 +1485,7 @@ function renderNode(
                    padding:1px 5px;
                    margin-left:6px;
                " title="This raw input is needed by multiple machines elsewhere in the tree — sum the rates to know your true total requirement">
-                   ⑂ shared: ${itemName}
+                   ⑂ shared: ${escapeHtml(itemName)}
                </span>`
             : "";
 
@@ -1525,7 +1523,7 @@ function renderNode(
 
         const displayVal =
             isAdvanced
-                ? `${requiredRate.toFixed(3)} ${itemName}/s`
+                ? `${requiredRate.toFixed(3)} ${escapeHtml(itemName)}/s`
                 : itemName;
 
         return `
@@ -1593,7 +1591,7 @@ function renderNode(
                 </span>
 
                 <a href="#${anchorId}" style="color:${sharedColor}; font-weight:bold; text-decoration:none;" title="Jump to full breakdown above">
-                    ⤴ shared above: ${itemName}${rateStr}
+                    ⤴ shared above: ${escapeHtml(itemName)}${rateStr}
                 </a>
             </div>
         `;
@@ -1654,8 +1652,8 @@ function renderNode(
                         ${prefix}${connector}
                     </span>
 
-                    <a href="#${anchorId}" style="color:${pointerColor}; font-weight:bold; text-decoration:none;" title="This machine also makes ${itemName} as a co-product — already counted in its full breakdown above">
-                        ⤴ shared above: ${node.machine.toUpperCase()} (also makes ${itemName}${rateStr})
+                    <a href="#${anchorId}" style="color:${pointerColor}; font-weight:bold; text-decoration:none;" title="This machine also makes ${escapeHtml(itemName)} as a co-product — already counted in its full breakdown above">
+                        ⤴ shared above: ${escapeHtml(node.machine.toUpperCase())} (also makes ${escapeHtml(itemName)}${rateStr})
                     </a>
                 </div>
             `;
@@ -1751,8 +1749,8 @@ function renderNode(
                    border-radius:4px;
                    padding:1px 5px;
                    margin-left:6px;
-               " title="This machine's output (${itemName}) is shared by multiple downstream consumers">
-                   ⑂ shared: ${itemName}
+               " title="This machine's output (${escapeHtml(itemName)}) is shared by multiple downstream consumers">
+                   ⑂ shared: ${escapeHtml(itemName)}
                </span>`
             : "";
 
@@ -1774,7 +1772,7 @@ function renderNode(
                 </b>
 
                 <b style="color:var(--text)">
-                    ${node.machine.toUpperCase()}
+                    ${escapeHtml(node.machine.toUpperCase())}
                 </b>
 
                 <span style="color:#888; font-size:0.8em;">
@@ -2117,12 +2115,9 @@ function hexToRgbaShared(hex, alpha) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+// Alias of escapeHtml (single implementation, defined below).
 function svgEsc(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+    return escapeHtml(str);
 }
 
 // Truncate a label to fit the node width instead of overflowing/wrapping —
