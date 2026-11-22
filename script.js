@@ -1940,52 +1940,58 @@ function buildGraphData(
     const sharedColor = isShared ? getSharedItemColor(itemName) : null;
 
     // ---- RAW / RECYCLED LEAF ----
+    //
+    // Same three cases as renderNode's raw leaf, so the graph and the text
+    // tree always agree on how much of this item is internal:
+    //   - fully supplied by a byproduct   -> recycle edge at the full rate
+    //   - partly supplied                 -> recycle edge at the supplied
+    //                                        rate, plus a raw node and edge
+    //                                        for the remainder
+    //   - not supplied                    -> plain raw node
     if (!treeData[itemName]) {
         const recycledAmount = byproductSupplied[itemName] || 0;
         const source = byproductSource[itemName];
         const recycledColor = getSharedItemColor(itemName);
+        const recycledPart = Math.min(recycledAmount, requiredRate);
+        const rawPart = Math.max(0, requiredRate - recycledPart);
 
-        // If this item is internally supplied as a byproduct, connect the
-        // source machine directly to the consuming machine instead of creating
-        // a separate "recycled" node card. This keeps the DAG as a clean flow
-        // graph and emphasizes that the material is coming from a real machine.
-        if (source) {
-            const sourceNodeId = nodeIdForRecipe.get(source.recipeId);
-            if (sourceNodeId && parentNodeId) {
-                edges.push({
-                    from: sourceNodeId,
-                    to: parentNodeId,
-                    itemName,
-                    rate: requiredRate,
-                    // A TRUE recycle edge: a machine's own byproduct is
-                    // being fed back to satisfy demand elsewhere in the
-                    // tree. Distinct from isSharedEdge (below), which just
-                    // means "this item has more than one consumer" — a
-                    // recycle edge specifically means "the supply is a
-                    // byproduct, not the item's primary expansion."
-                    isRecycleEdge: true,
-                    sharedColor: recycledColor
+        const sourceNodeId = source ? nodeIdForRecipe.get(source.recipeId) : null;
+
+        if (sourceNodeId && parentNodeId && recycledPart > EPS) {
+            edges.push({
+                from: sourceNodeId,
+                to: parentNodeId,
+                itemName,
+                rate: recycledPart,
+                // A TRUE recycle edge: a machine's own byproduct is
+                // being fed back to satisfy demand elsewhere in the
+                // tree. Distinct from isSharedEdge (below), which just
+                // means "this item has more than one consumer" — a
+                // recycle edge specifically means "the supply is a
+                // byproduct, not the item's primary expansion."
+                isRecycleEdge: true,
+                sharedColor: recycledColor
+            });
+
+            if (rawPart > EPS) {
+                const rawId = nextId('raw');
+                nodes.push({
+                    id: rawId, kind: 'raw', label: itemName, itemName,
+                    rate: rawPart, isShared, sharedColor: recycledColor,
+                    recycledSourceColor: recycledColor,
+                    partialRecycle: { amount: recycledPart, machine: source.machineName }
                 });
-                return sourceNodeId;
+                edges.push({ from: rawId, to: parentNodeId, itemName, rate: rawPart });
             }
+            return sourceNodeId;
         }
 
         const id = nextId('raw');
-
-        if (source && recycledAmount > EPS) {
-            nodes.push({
-                id, kind: 'raw', label: itemName, itemName,
-                rate: requiredRate, isShared, sharedColor: recycledColor,
-                recycledSourceColor: recycledColor,
-                partialRecycle: { amount: recycledAmount, machine: source.machineName }
-            });
-        } else {
-            nodes.push({
-                id, kind: 'raw', label: itemName, itemName,
-                rate: requiredRate, isShared, sharedColor: recycledColor,
-                recycledSourceColor: recycledColor
-            });
-        }
+        nodes.push({
+            id, kind: 'raw', label: itemName, itemName,
+            rate: requiredRate, isShared, sharedColor: recycledColor,
+            recycledSourceColor: recycledColor
+        });
 
         if (parentNodeId) {
             edges.push({ from: id, to: parentNodeId, itemName, rate: requiredRate });
