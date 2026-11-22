@@ -496,7 +496,6 @@ function calculateAll(rerollColors = false) {
     // redraws the same DAG and should not change its color mapping.
     if (rerollColors) {
         dagCollapsed = new Set();
-        currentColorSeed = Math.floor(Math.random() * 2147483647);
         sharedColorAssignments.clear();
         usedSharedColors.clear();
     }
@@ -1230,9 +1229,10 @@ const SHARED_ITEM_PALETTE = [
 const sharedColorAssignments = new Map();
 const usedSharedColors = new Set();
 
-// Current render's color seed. Re-rolled once per fresh calculation
-// (see calculateAll) — NOT per node, NOT per page load.
-let currentColorSeed = Math.floor(Math.random() * 2147483647);
+// Seed for the colour hash. Fixed, so the same item gets the same colour
+// on every run and in every session; collisions are resolved by the order
+// items are first seen in a run (which is itself deterministic).
+let currentColorSeed = 0;
 
 function getSharedItemColor(itemName, seed = currentColorSeed) {
     if (sharedColorAssignments.has(itemName)) {
