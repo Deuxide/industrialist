@@ -1394,6 +1394,35 @@ function getSharedItemColor(itemName, seed = currentColorSeed) {
 }
 
 
+// ---- Byproduct (recycle) helpers ----
+// Shared by the text tree (renderNode) and the graph model (buildGraphData),
+// so both draw the same recycle decisions.
+
+// Splits an item's demand between byproducts already in the plan and
+// external input.
+//   supplied    amount a byproduct provides
+//   recycledPart share of the demand covered by that byproduct
+//   rawPart     share still needing external input
+function recycleSplit(itemName, requiredRate, byproductSupplied, byproductSource) {
+    const supplied = byproductSupplied[itemName] || 0;
+    return {
+        source: byproductSource[itemName],
+        supplied,
+        recycledPart: Math.min(supplied, requiredRate),
+        rawPart: Math.max(0, requiredRate - supplied)
+    };
+}
+
+// The item this machine's recipe yields as a byproduct that is in the plan,
+// or null. Prefers any matching byproduct, then the item being made.
+function recycledSourceItemFor(recipeId, itemName, byproductSource) {
+    return Object.keys(byproductSource).find(
+        sourceItem => byproductSource[sourceItem] && byproductSource[sourceItem].recipeId === recipeId
+    ) || (itemName && byproductSource[itemName] && byproductSource[itemName].recipeId === recipeId
+        ? itemName
+        : null);
+}
+
 function renderNode(
     treeData,
     itemName,
@@ -1499,9 +1528,8 @@ function renderNode(
 
     if (!treeData[itemName]) {
 
-        const recycledAmount = byproductSupplied[itemName] || 0;
-        const source = byproductSource[itemName];
-        const trulyRawAmount = Math.max(0, requiredRate - recycledAmount);
+        const { source, supplied: recycledAmount, rawPart: trulyRawAmount } =
+            recycleSplit(itemName, requiredRate, byproductSupplied, byproductSource);
 
         const EPS = 1e-6;
 
@@ -1828,15 +1856,7 @@ function renderNode(
         const wholeMachines = Math.ceil(node.count - 1e-9);
         const exactStr = node.count.toFixed(4);
 
-        const recycledSourceItem =
-            Object.keys(byproductSource).find(
-                sourceItem =>
-                    byproductSource[sourceItem] &&
-                    byproductSource[sourceItem].recipeId === node.recipeId
-            ) ||
-            (itemName && byproductSource[itemName] && byproductSource[itemName].recipeId === node.recipeId
-                ? itemName
-                : null);
+        const recycledSourceItem = recycledSourceItemFor(node.recipeId, itemName, byproductSource);
 
         const recycledSourceColor =
             recycledSourceItem
@@ -2047,11 +2067,9 @@ function buildGraphData(
     //                                        for the remainder
     //   - not supplied                    -> plain raw node
     if (!treeData[itemName]) {
-        const recycledAmount = byproductSupplied[itemName] || 0;
-        const source = byproductSource[itemName];
+        const { source, recycledPart, rawPart } =
+            recycleSplit(itemName, requiredRate, byproductSupplied, byproductSource);
         const recycledColor = getSharedItemColor(itemName);
-        const recycledPart = Math.min(recycledAmount, requiredRate);
-        const rawPart = Math.max(0, requiredRate - recycledPart);
 
         const sourceNodeId = source ? nodeIdForRecipe.get(source.recipeId) : null;
 
@@ -2152,15 +2170,7 @@ function buildGraphData(
             rate: node.allOutputs[out] * node.count
         }));
 
-        const recycledSourceItem =
-            Object.keys(byproductSource).find(
-                sourceItem =>
-                    byproductSource[sourceItem] &&
-                    byproductSource[sourceItem].recipeId === node.recipeId
-            ) ||
-            (itemName && byproductSource[itemName] && byproductSource[itemName].recipeId === node.recipeId
-                ? itemName
-                : null);
+        const recycledSourceItem = recycledSourceItemFor(node.recipeId, itemName, byproductSource);
 
         const recycledSourceColor =
             recycledSourceItem
