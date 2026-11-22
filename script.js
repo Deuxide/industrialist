@@ -2226,7 +2226,7 @@ async function renderGraphDAG(container, graphData, isAdvanced) {
 
     try {
         container.innerHTML = buildDagSvg(graphData, layout, isAdvanced);
-        initDagPanZoom(container, layout.width, layout.height);
+        initDagPanZoom(container, graphData, layout);
     } catch (err) {
         console.error(err);
         showDagMessage(
@@ -2321,7 +2321,7 @@ function dagEdgeTemplate(edge, index, points, isAdvanced) {
             : edge.itemName);
 
     let html = `
-        <g class="${classes.join(' ')}" data-edge-id="e${index}" data-from="${svgEsc(edge.from)}" data-to="${svgEsc(edge.to)}" data-item="${svgEsc(edge.itemName)}"${styleAttr}>
+        <g class="${classes.join(' ')}" aria-hidden="true" data-edge-id="e${index}" data-from="${svgEsc(edge.from)}" data-to="${svgEsc(edge.to)}" data-item="${svgEsc(edge.itemName)}"${styleAttr}>
             <path d="${d}" marker-end="url(#${marker})"></path>
             <title>${svgEsc(tooltip)}</title>
         </g>`;
@@ -2337,7 +2337,7 @@ function dagEdgeTemplate(edge, index, points, isAdvanced) {
         const lx = anchor.x - labelW / 2;
         const ly = anchor.y - 9 - 14;
         html += `
-        <g class="dag-edge-label" transform="translate(${lx.toFixed(1)},${ly.toFixed(1)})" pointer-events="none"${styleAttr}>
+        <g class="dag-edge-label" data-edge-id="e${index}" transform="translate(${lx.toFixed(1)},${ly.toFixed(1)})" pointer-events="none"${styleAttr}>
             <rect width="${labelW.toFixed(1)}" height="18" rx="9"></rect>
             <text x="${(labelW / 2).toFixed(1)}" y="13" text-anchor="middle">${svgEsc(fitLabel(labelText, 26))}</text>
         </g>`;
@@ -2362,8 +2362,13 @@ function dagNodeTemplate(node, box, isAdvanced) {
     if (glowColor) styleParts.push(`--glow-color:${svgEsc(hexToRgbaShared(glowColor, 0.6))}`);
     const styleAttr = styleParts.length ? ` style="${styleParts.join(';')}"` : '';
 
+    const ariaLabel = node.kind === 'machine'
+        ? `${node.count}x ${node.label}, makes ${node.outputs.map(o => o.itemName).join(', ')}`
+        : `${node.kind} ${node.itemName}`;
+
     const attrs =
         `class="${classes.join(' ')}" data-node-id="${svgEsc(node.id)}" data-kind="${svgEsc(node.kind)}"` +
+        ` tabindex="0" role="button" aria-label="${svgEsc(ariaLabel)}"` +
         ` transform="translate(${x.toFixed(1)},${y.toFixed(1)})"${styleAttr}`;
 
     if (node.kind === 'machine') {
@@ -2426,7 +2431,7 @@ function buildDagSvg(graphData, layout, isAdvanced) {
     });
 
     return `
-        <svg id="dagSvg" class="dag-svg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="display:block; user-select:none; -webkit-user-select:none; -moz-user-select:none;">
+        <svg id="dagSvg" class="dag-svg" role="group" tabindex="0" aria-label="Production graph. Click a machine, or use the arrow keys to move between machines." width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="display:block; user-select:none; -webkit-user-select:none; -moz-user-select:none;">
             ${buildDagMarkerDefs(graphData)}
             <g id="dagViewport">
                 ${recycleHtml}
@@ -2438,137 +2443,552 @@ function buildDagSvg(graphData, layout, isAdvanced) {
 }
 
 
-// ---- PAN & ZOOM ----
-// Simple pointer-drag pan + wheel/pinch zoom on the <g id="dagViewport">
-// transform. No dependency — plain pointer events, works for mouse,
-// touch, and trackpad alike.
+// ---- INTERACTION: PAN / ZOOM / SELECTION / SEARCH / KEYBOARD ----
 //
-// COORDINATE SPACE: the <svg> deliberately has NO viewBox (see
-// renderGraphDAG) — it's sized to 100%/100% of its container, so one
-// SVG unit === one CSS pixel. That's what lets panX/panY (derived
-// straight from clientX/clientY deltas) map 1:1 onto the transform
-// with no scale-factor mismatch. A viewBox here would put the
-// transform in a different coordinate system than the pointer
-// events, which is what made panning feel unreliable before.
+// Everything here works on the <g id="dagViewport"> transform. The <svg>
+// has NO viewBox, so one SVG unit === one CSS pixel and pointer deltas
+// map 1:1 onto the transform. ELK layout coordinates map to screen as
+//   screen = pan + scale * layoutCoord
+//
+// Gestures share one pointer map, so mouse, touch and pen take the same
+// path:
+//   - one pointer: drag to pan; a tap (no real movement) selects or clears
+//   - two pointers: pinch to zoom around their midpoint
+//   - wheel: zoom around the cursor
+//
+// Selecting a node highlights its lineage (everything that feeds it and
+// everything it feeds) and dims the rest of the graph.
 
-function initDagPanZoom(container, contentW, contentH) {
+const DAG_SCALE_MIN = 0.25;
+const DAG_SCALE_MAX = 3.5;
+const DAG_FIT_MAX = 1.4;       // a whole-graph fit never enlarges past this
+const DAG_FIT_PAD = 60;
+const DAG_TAP_SLOP = 4;        // px of movement that turns a tap into a drag
+
+function dagClamp(v, lo, hi) {
+    return Math.min(Math.max(v, lo), hi);
+}
+
+function dagReducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+
+function dagAnnounce(text) {
+    const live = document.getElementById('dagLive');
+    if (live) live.textContent = text;
+}
+
+function initDagPanZoom(container, graphData, layout) {
     const svg = container.querySelector('#dagSvg');
     const viewport = container.querySelector('#dagViewport');
     if (!svg || !viewport) return;
 
+    const adj = DagLayout.buildAdjacency(graphData);
+    const nodeById = new Map(graphData.nodes.map(n => [n.id, n]));
+    container._dagModel = { graphData, layout, adj, nodeById };
+
     let scale = 1;
     let panX = 0;
     let panY = 0;
+    // Set once the user pans or zooms. Until then a resize refits the
+    // whole graph; after that a resize keeps the current view centred.
+    let userMoved = false;
+    let selectedId = null;
+    let animFrame = 0;
+    let resizeFrame = 0;
+    let lastSize = { w: 0, h: 0 };
 
-    // Fit the whole graph in view on first render, with generous
-    // headroom — bias toward "readable" over "everything crammed
-    // in", and never shrink below a legible floor.
-    const wrapRect = container.getBoundingClientRect();
-    const availW = wrapRect.width || 900;
-    const availH = wrapRect.height || 500;
-    const PADDING = 60;
-    const fitScale = Math.min(
-        (availW - PADDING) / contentW,
-        (availH - PADDING) / contentH,
-        1.4
-    );
-    const initialScale = Math.min(Math.max(fitScale, 0.4), 1.4);
-
-    function resetView() {
-        scale = initialScale;
-        panX = (availW - contentW * scale) / 2;
-        panY = (availH - contentH * scale) / 2;
-    }
-    resetView();
+    // Hidden containers measure 0; fall back to a sane size so the
+    // initial fit is still meaningful. A real resize later corrects it.
+    const viewSize = () => ({
+        w: container.clientWidth || 900,
+        h: container.clientHeight || 500
+    });
 
     function applyTransform() {
         viewport.setAttribute('transform', `translate(${panX},${panY}) scale(${scale})`);
     }
-    applyTransform();
 
-    let isPanning = false;
-    let didDrag = false;
-    let startX = 0, startY = 0, startPanX = 0, startPanY = 0;
+    function stopAnimation() {
+        if (animFrame) cancelAnimationFrame(animFrame);
+        animFrame = 0;
+    }
+
+    // Moves to a target view, animating unless the user prefers reduced motion.
+    function setView(s, x, y, animate) {
+        stopAnimation();
+        if (!animate || dagReducedMotion()) {
+            scale = s;
+            panX = x;
+            panY = y;
+            applyTransform();
+            return;
+        }
+        const from = { s: scale, x: panX, y: panY };
+        const t0 = performance.now();
+        const DURATION = 220;
+        const step = now => {
+            const t = Math.min(1, (now - t0) / DURATION);
+            const k = 1 - Math.pow(1 - t, 3); // ease-out cubic
+            scale = from.s + (s - from.s) * k;
+            panX = from.x + (x - from.x) * k;
+            panY = from.y + (y - from.y) * k;
+            applyTransform();
+            animFrame = t < 1 ? requestAnimationFrame(step) : 0;
+        };
+        animFrame = requestAnimationFrame(step);
+    }
+
+    function fitAll(animate) {
+        const v = viewSize();
+        const s = dagClamp(
+            Math.min((v.w - DAG_FIT_PAD) / layout.width, (v.h - DAG_FIT_PAD) / layout.height, DAG_FIT_MAX),
+            DAG_SCALE_MIN,
+            DAG_FIT_MAX
+        );
+        setView(s, (v.w - layout.width * s) / 2, (v.h - layout.height * s) / 2, animate);
+    }
+
+    // Centres a box (layout coordinates) in the view at a scale that fits it.
+    function fitBox(bx, by, bw, bh, maxScale, animate) {
+        const v = viewSize();
+        const s = dagClamp(
+            Math.min((v.w - DAG_FIT_PAD) / bw, (v.h - DAG_FIT_PAD) / bh, maxScale),
+            DAG_SCALE_MIN,
+            DAG_SCALE_MAX
+        );
+        userMoved = true;
+        setView(s, v.w / 2 - (bx + bw / 2) * s, v.h / 2 - (by + bh / 2) * s, animate);
+    }
+
+    // Centres one node, keeping the current zoom.
+    function centreNode(id, animate) {
+        const box = layout.nodes.get(id);
+        if (!box) return;
+        const v = viewSize();
+        userMoved = true;
+        setView(scale, v.w / 2 - (box.x + box.w / 2) * scale, v.h / 2 - (box.y + box.h / 2) * scale, animate);
+    }
+
+    // Zooms to newScale, keeping the point (cx, cy) in view-local pixels fixed.
+    function zoomAround(newScale, cx, cy) {
+        stopAnimation();
+        const s = dagClamp(newScale, DAG_SCALE_MIN, DAG_SCALE_MAX);
+        panX = cx - ((cx - panX) / scale) * s;
+        panY = cy - ((cy - panY) / scale) * s;
+        scale = s;
+        userMoved = true;
+        applyTransform();
+    }
+
+    function zoomBy(factor) {
+        const v = viewSize();
+        zoomAround(scale * factor, v.w / 2, v.h / 2);
+    }
+
+    function localPoint(clientX, clientY) {
+        const r = svg.getBoundingClientRect();
+        return { x: clientX - r.left, y: clientY - r.top };
+    }
+
+    // ---- selection & lineage ----
+
+    function applyHighlight() {
+        const nodeEls = svg.querySelectorAll('[data-node-id]');
+        const edgeEls = svg.querySelectorAll('[data-edge-id]');
+        nodeEls.forEach(el => el.classList.remove('is-lineage', 'is-selected'));
+        edgeEls.forEach(el => el.classList.remove('is-lineage'));
+        svg.classList.remove('dag-dim');
+
+        if (!selectedId || !nodeById.has(selectedId)) {
+            selectedId = null;
+            renderDagDetail(container, null);
+            return;
+        }
+
+        const L = DagLayout.computeLineage(graphData, adj, selectedId);
+        svg.classList.add('dag-dim');
+        nodeEls.forEach(el => {
+            const id = el.dataset.nodeId;
+            if (L.nodes.has(id)) el.classList.add('is-lineage');
+            if (id === selectedId) el.classList.add('is-selected');
+        });
+        edgeEls.forEach(el => {
+            if (L.edges.has(Number(el.dataset.edgeId.slice(1)))) el.classList.add('is-lineage');
+        });
+        renderDagDetail(container, selectedId, L);
+    }
+
+    function selectNode(id) {
+        selectedId = id;
+        applyHighlight();
+        const node = nodeById.get(id);
+        const L = DagLayout.computeLineage(graphData, adj, id);
+        dagAnnounce(
+            `${node.label || node.itemName}: ` +
+            `${L.upNodes.size - 1} upstream, ${L.downNodes.size - 1} downstream`
+        );
+    }
+
+    function clearSelection() {
+        selectedId = null;
+        applyHighlight();
+        dagAnnounce('Selection cleared');
+    }
+
+    function tapTarget(target) {
+        const el = target && target.closest ? target.closest('[data-node-id]') : null;
+        if (!el) {
+            clearSelection();
+            return;
+        }
+        const id = el.dataset.nodeId;
+        if (id === selectedId) clearSelection();
+        else selectNode(id);
+    }
+
+    function focusDomNode(id) {
+        const el = svg.querySelector(`[data-node-id="${CSS.escape(id)}"]`);
+        if (el) el.focus({ preventScroll: true });
+    }
+
+    // Selects a node, zooms to it and moves keyboard focus onto it.
+    function focusNodeById(id) {
+        const box = layout.nodes.get(id);
+        if (!box) return;
+        selectNode(id);
+        fitBox(box.x - 20, box.y - 20, box.w + 40, box.h + 40, 1.2, true);
+        focusDomNode(id);
+    }
+
+    // Pans just enough to bring a node on screen, without changing zoom.
+    function ensureVisible(id) {
+        const box = layout.nodes.get(id);
+        if (!box) return;
+        const v = viewSize();
+        const sx = panX + scale * box.x;
+        const sy = panY + scale * box.y;
+        const inside = sx >= 0 && sy >= 0 &&
+            sx + scale * box.w <= v.w && sy + scale * box.h <= v.h;
+        if (!inside) centreNode(id, true);
+    }
+
+    // Arrow-key navigation: the nearest node in that direction, scored
+    // so that nodes straight ahead beat ones off to the side.
+    function moveFocusDirection(fromId, key) {
+        const from = layout.nodes.get(fromId);
+        if (!from) return;
+        const x0 = from.x + from.w / 2;
+        const y0 = from.y + from.h / 2;
+        let best = null;
+        let bestScore = Infinity;
+        layout.nodes.forEach((box, id) => {
+            if (id === fromId || !nodeById.has(id)) return;
+            const dx = box.x + box.w / 2 - x0;
+            const dy = box.y + box.h / 2 - y0;
+            let primary;
+            let perp;
+            if (key === 'ArrowRight') { primary = dx; perp = Math.abs(dy); }
+            else if (key === 'ArrowLeft') { primary = -dx; perp = Math.abs(dy); }
+            else if (key === 'ArrowDown') { primary = dy; perp = Math.abs(dx); }
+            else { primary = -dy; perp = Math.abs(dx); }
+            if (primary <= 1) return;
+            const score = primary + 2 * perp;
+            if (score < bestScore) {
+                bestScore = score;
+                best = id;
+            }
+        });
+        if (!best) return;
+        focusDomNode(best);
+        ensureVisible(best);
+    }
+
+    // ---- pointers: pan, pinch, tap ----
+
+    const pointers = new Map();
+    let gesture = null;          // { kind: 'pan', ... } or { kind: 'pinch', ... }
+    let tapCandidate = false;    // a lone pointer that has not moved yet
+    let downTarget = null;
+
+    function pinchStart() {
+        const [a, b] = [...pointers.values()];
+        const c = localPoint((a.x + b.x) / 2, (a.y + b.y) / 2);
+        return {
+            kind: 'pinch',
+            d0: Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1),
+            s0: scale,
+            // world point under the pinch midpoint, held fixed while zooming
+            wx: (c.x - panX) / scale,
+            wy: (c.y - panY) / scale
+        };
+    }
 
     svg.addEventListener('pointerdown', e => {
-        // Only left-click / primary touch starts a pan.
-        if (e.button !== undefined && e.button !== 0) return;
-        isPanning = true;
-        didDrag = false;
-        startX = e.clientX;
-        startY = e.clientY;
-        startPanX = panX;
-        startPanY = panY;
-        try { svg.setPointerCapture(e.pointerId); } catch (err) { /* not supported; fall back to plain listeners */ }
-        svg.style.cursor = 'grabbing';
+        if (e.button !== undefined && e.button !== 0) return; // primary button / touch only
+        stopAnimation();
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        try { svg.setPointerCapture(e.pointerId); } catch (err) { /* unsupported: window backstop still ends it */ }
+
+        if (pointers.size === 1) {
+            gesture = { kind: 'pan', sx: e.clientX, sy: e.clientY, px: panX, py: panY };
+            tapCandidate = true;
+            downTarget = e.target;
+            svg.style.cursor = 'grabbing';
+        } else if (pointers.size === 2) {
+            gesture = pinchStart();
+            tapCandidate = false;
+        }
     });
 
     svg.addEventListener('pointermove', e => {
-        if (!isPanning) return;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) didDrag = true;
-        panX = startPanX + dx;
-        panY = startPanY + dy;
-        applyTransform();
+        if (!pointers.has(e.pointerId)) return;
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (!gesture) return;
+
+        if (gesture.kind === 'pinch' && pointers.size >= 2) {
+            const [a, b] = [...pointers.values()];
+            const c = localPoint((a.x + b.x) / 2, (a.y + b.y) / 2);
+            const d = Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1);
+            scale = dagClamp(gesture.s0 * d / gesture.d0, DAG_SCALE_MIN, DAG_SCALE_MAX);
+            panX = c.x - gesture.wx * scale;
+            panY = c.y - gesture.wy * scale;
+            userMoved = true;
+            tapCandidate = false;
+            applyTransform();
+            return;
+        }
+
+        if (gesture.kind === 'pan' && pointers.size === 1) {
+            const dx = e.clientX - gesture.sx;
+            const dy = e.clientY - gesture.sy;
+            if (Math.abs(dx) > DAG_TAP_SLOP || Math.abs(dy) > DAG_TAP_SLOP) {
+                tapCandidate = false;
+                userMoved = true;
+            }
+            panX = gesture.px + dx;
+            panY = gesture.py + dy;
+            applyTransform();
+        }
     });
 
-    function endPan(e) {
-        if (!isPanning) return;
-        isPanning = false;
-        svg.style.cursor = 'grab';
-        try { svg.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
-    }
-    svg.addEventListener('pointerup', endPan);
-    svg.addEventListener('pointercancel', endPan);
-    // Backstop: if pointer capture silently failed and the button is
-    // released outside the SVG, this still catches it. Removed when
-    // this graph is torn down (see below) to avoid piling up stale
-    // listeners across repeated "Run Simulation" calls.
-    window.addEventListener('pointerup', endPan);
-    container._dagCleanup = () => window.removeEventListener('pointerup', endPan);
+    function endPointer(e) {
+        // Returns false for pointers we are not tracking, so the svg
+        // listener and the window backstop can both fire safely.
+        if (!pointers.delete(e.pointerId)) return;
 
-    svg.style.cursor = 'grab';
+        if (pointers.size === 1 && gesture && gesture.kind === 'pinch') {
+            // Lifting one finger off a pinch carries on as a pan with the other.
+            const [rest] = [...pointers.values()];
+            gesture = { kind: 'pan', sx: rest.x, sy: rest.y, px: panX, py: panY };
+            tapCandidate = false;
+            return;
+        }
+
+        if (pointers.size === 0) {
+            if (e.type === 'pointerup' && tapCandidate) tapTarget(downTarget);
+            gesture = null;
+            tapCandidate = false;
+            downTarget = null;
+            svg.style.cursor = 'grab';
+        }
+    }
+    svg.addEventListener('pointerup', endPointer);
+    svg.addEventListener('pointercancel', endPointer);
+    // Backstop: a pointer released outside the svg (capture can fail)
+    // still ends its gesture. Removed in _dagCleanup.
+    window.addEventListener('pointerup', endPointer);
+    window.addEventListener('pointercancel', endPointer);
 
     svg.addEventListener('wheel', e => {
         e.preventDefault();
-        const rect = svg.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-
-        const zoomFactor = Math.pow(1.0015, -e.deltaY);
-        const newScale = Math.min(Math.max(scale * zoomFactor, 0.25), 3.5);
-
-        // Zoom centered on cursor position — keep the point under the
-        // cursor fixed in place while scale changes.
-        panX = mouseX - ((mouseX - panX) / scale) * newScale;
-        panY = mouseY - ((mouseY - panY) / scale) * newScale;
-        scale = newScale;
-
-        applyTransform();
+        const p = localPoint(e.clientX, e.clientY);
+        zoomAround(scale * Math.pow(1.0015, -e.deltaY), p.x, p.y);
     }, { passive: false });
 
-    // Expose zoom controls for the +/-/reset buttons.
-    container._dagZoomIn = () => {
-        const cx = availW / 2, cy = availH / 2;
-        const newScale = Math.min(scale * 1.3, 3.5);
-        panX = cx - ((cx - panX) / scale) * newScale;
-        panY = cy - ((cy - panY) / scale) * newScale;
-        scale = newScale;
-        applyTransform();
-    };
-    container._dagZoomOut = () => {
-        const cx = availW / 2, cy = availH / 2;
-        const newScale = Math.max(scale * 0.77, 0.25);
-        panX = cx - ((cx - panX) / scale) * newScale;
-        panY = cy - ((cy - panY) / scale) * newScale;
-        scale = newScale;
-        applyTransform();
-    };
+    // ---- keyboard ----
+
+    svg.addEventListener('keydown', e => {
+        const el = e.target && e.target.closest ? e.target.closest('[data-node-id]') : null;
+        const id = el ? el.dataset.nodeId : null;
+        let handled = true;
+
+        switch (e.key) {
+            case 'Escape':
+                clearSelection();
+                break;
+            case 'Enter':
+            case ' ':
+                if (!id) { handled = false; break; }
+                if (id === selectedId) clearSelection();
+                else selectNode(id);
+                break;
+            case 'ArrowRight':
+            case 'ArrowLeft':
+            case 'ArrowUp':
+            case 'ArrowDown':
+                if (!id) { handled = false; break; }
+                moveFocusDirection(id, e.key);
+                break;
+            case '+':
+            case '=':
+                zoomBy(1.3);
+                break;
+            case '-':
+            case '_':
+                zoomBy(1 / 1.3);
+                break;
+            case '0':
+            case 'f':
+            case 'F':
+                userMoved = false;
+                fitAll(true);
+                break;
+            default:
+                handled = false;
+        }
+        if (handled) e.preventDefault();
+    });
+
+    // ---- resize: refit until the user takes over the view ----
+
+    const ro = typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => {
+            if (resizeFrame) cancelAnimationFrame(resizeFrame);
+            resizeFrame = requestAnimationFrame(() => {
+                resizeFrame = 0;
+                const w = container.clientWidth;
+                const h = container.clientHeight;
+                if (!w || !h) return; // hidden (other tab): refit when shown
+                if (!userMoved || !lastSize.w) {
+                    fitAll(false);
+                } else {
+                    panX += (w - lastSize.w) / 2;
+                    panY += (h - lastSize.h) / 2;
+                    applyTransform();
+                }
+                lastSize = { w, h };
+            });
+        })
+        : null;
+
+    // ---- toolbar and search hooks ----
+
+    container._dagZoomIn = () => zoomBy(1.3);
+    container._dagZoomOut = () => zoomBy(1 / 1.3);
     container._dagZoomReset = () => {
-        resetView();
-        applyTransform();
+        userMoved = false;
+        fitAll(true);
     };
+    container._dagClear = () => clearSelection();
+    container._dagSearch = (query, commit) => {
+        const q = String(query || '').trim().toLowerCase();
+        const countEl = document.getElementById('dagSearchCount');
+        if (!q) {
+            if (countEl) countEl.textContent = '';
+            return;
+        }
+        const matches = graphData.nodes.filter(n =>
+            [n.label, n.itemName].some(v => v && String(v).toLowerCase().includes(q))
+        );
+        if (countEl) {
+            countEl.textContent = matches.length
+                ? `${matches.length} match${matches.length === 1 ? '' : 'es'}`
+                : 'no match';
+        }
+        if (commit && matches.length) focusNodeById(matches[0].id);
+    };
+
+    container._dagCleanup = () => {
+        window.removeEventListener('pointerup', endPointer);
+        window.removeEventListener('pointercancel', endPointer);
+        if (ro) ro.disconnect();
+        if (resizeFrame) cancelAnimationFrame(resizeFrame);
+        stopAnimation();
+        pointers.clear();
+    };
+
+    // ---- first view ----
+
+    svg.style.cursor = 'grab';
+    fitAll(false);
+    lastSize = { w: container.clientWidth, h: container.clientHeight };
+    applyHighlight();
+    if (ro) ro.observe(container);
+}
+
+// Detail panel for the selected node. Shown only while something is
+// selected; it is a sibling of the graph, so it is rebuilt on each change.
+function renderDagDetail(container, id, lineage) {
+    const panel = document.getElementById('dagDetail');
+    if (!panel) return;
+    const model = container && container._dagModel;
+    const node = id && model ? model.nodeById.get(id) : null;
+    if (!node) {
+        panel.hidden = true;
+        panel.innerHTML = '';
+        return;
+    }
+
+    const L = lineage || DagLayout.computeLineage(model.graphData, model.adj, id);
+    const upCount = L.upNodes.size - 1;
+    const downCount = L.downNodes.size - 1;
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+    let title;
+    let body;
+    if (node.kind === 'machine') {
+        title = `${node.count}× ${node.label}`;
+        const outs = node.outputs
+            .map(o => `${escapeHtml(o.itemName)} <span class="dag-detail-num">${o.rate.toFixed(2)}/s</span>`)
+            .join('<br>');
+        body = `
+            <div class="dag-detail-row"><span>Outputs</span><div>${outs || 'none'}</div></div>
+            <div class="dag-detail-row"><span>Inputs</span><div>${escapeHtml(node.inputSummary || 'none')}</div></div>
+            <div class="dag-detail-row"><span>Exact need</span><div>${Number(node.exactCount).toFixed(4)}×</div></div>`;
+    } else if (node.kind === 'raw') {
+        title = `[RAW] ${node.itemName}`;
+        body = `
+            <div class="dag-detail-row"><span>Rate</span><div>${Number(node.rate).toFixed(2)}/s</div></div>
+            <div class="dag-detail-row"><span>Note</span><div>${node.partialRecycle
+                ? `Partly recycled from ${escapeHtml(node.partialRecycle.machine)}`
+                : 'Raw input, not produced in this plan'}</div></div>`;
+    } else {
+        title = `[CYCLE] ${node.itemName}`;
+        body = `
+            <div class="dag-detail-row"><span>Note</span><div>Loops back to an item already being produced</div></div>`;
+    }
+
+    const flags = [];
+    if (node.isShared) flags.push('⑂ shared between consumers');
+    if (node.recycledSourceColor) flags.push('♻ recycled byproduct');
+
+    panel.hidden = false;
+    panel.innerHTML = `
+        <div class="dag-detail-head">
+            <strong>${escapeHtml(title)}</strong>
+            <button type="button" class="tiny-btn" onclick="dagClearSelection()" aria-label="Clear selection">×</button>
+        </div>
+        ${body}
+        ${flags.length ? `<div class="dag-detail-flags">${flags.join(' · ')}</div>` : ''}
+        <div class="dag-detail-row"><span>Feeds</span><div>${plural(downCount, 'downstream step')}</div></div>
+        <div class="dag-detail-row"><span>Fed by</span><div>${plural(upCount, 'upstream step')}</div></div>`;
+}
+
+// Toolbar and search entry points (the DOM controls live outside the graph).
+function dagClearSelection() {
+    const c = document.getElementById('machineGraph');
+    if (c && c._dagClear) c._dagClear();
+}
+
+function dagSearchInput(value) {
+    const c = document.getElementById('machineGraph');
+    if (c && c._dagSearch) c._dagSearch(value, false);
+}
+
+function dagSearchSubmit(value) {
+    const c = document.getElementById('machineGraph');
+    if (c && c._dagSearch) c._dagSearch(value, true);
 }
 
 function escapeHtml(str) {
