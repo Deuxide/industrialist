@@ -150,6 +150,7 @@
                     onkeydown="if (event.key === 'Enter') { event.preventDefault(); dagSearchSubmit(this.value); }
                                else if (event.key === 'Escape') { this.value = ''; dagSearchInput(''); }">
                 <span id="dagSearchCount" class="dag-search-count" aria-live="polite"></span>
+                <button id="dagDirBtn" class="tiny-btn" onclick="dagToggleDirection()">⇄ Left-to-right</button>
                 <span class="dag-zoom-hint">Drag or pinch to pan and zoom · Click a machine to trace its lineage</span>
             </div>
 

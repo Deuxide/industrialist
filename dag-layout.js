@@ -422,6 +422,39 @@
     // stays visible. Returns a smaller { nodes, edges } graph; collapsed
     // nodes carry `collapsed` and `hiddenCount`, and any node that has
     // inputs carries `collapsible`.
+    // Steps that exist only to feed `c`, given steps already hidden.
+    function exclusiveUpstream(graphData, adj, c, removed) {
+        const cand = new Set();
+        const stack = [c];
+        while (stack.length) {
+            const cur = stack.pop();
+            adj.incoming.get(cur).forEach(i => {
+                const from = graphData.edges[i].from;
+                if (from !== c && !cand.has(from) && !removed.has(from)) {
+                    cand.add(from);
+                    stack.push(from);
+                }
+            });
+        }
+
+        let changed = true;
+        while (changed) {
+            changed = false;
+            for (const x of cand) {
+                const feedsVisible = adj.outgoing.get(x).some(i => {
+                    const t = graphData.edges[i].to;
+                    return !(t === c || cand.has(t) || removed.has(t));
+                });
+                if (feedsVisible) {
+                    cand.delete(x);
+                    changed = true;
+                    break;
+                }
+            }
+        }
+        return cand;
+    }
+
     function collapseGraph(graphData, collapsed) {
         const adj = buildAdjacency(graphData);
         const ids = new Set(graphData.nodes.map(n => n.id));
@@ -431,46 +464,24 @@
         const targets = [...(collapsed || [])].filter(id =>
             ids.has(id) && adj.incoming.get(id).length > 0
         );
-
         targets.forEach(c => {
-            const cand = new Set();
-            const stack = [c];
-            while (stack.length) {
-                const cur = stack.pop();
-                adj.incoming.get(cur).forEach(i => {
-                    const from = graphData.edges[i].from;
-                    if (from !== c && !cand.has(from) && !removed.has(from)) {
-                        cand.add(from);
-                        stack.push(from);
-                    }
-                });
-            }
-
-            let changed = true;
-            while (changed) {
-                changed = false;
-                cand.forEach(x => {
-                    if (changed) return;
-                    const feedsVisible = adj.outgoing.get(x).some(i => {
-                        const t = graphData.edges[i].to;
-                        return !(t === c || cand.has(t) || removed.has(t));
-                    });
-                    if (feedsVisible) {
-                        cand.delete(x);
-                        changed = true;
-                    }
-                });
-            }
-
+            const cand = exclusiveUpstream(graphData, adj, c, removed);
             cand.forEach(x => removed.add(x));
             hidden.set(c, cand.size);
+        });
+
+        // A node offers a fold only if folding would hide something.
+        const offers = new Map();
+        graphData.nodes.forEach(n => {
+            if (adj.incoming.get(n.id).length === 0) return;
+            offers.set(n.id, exclusiveUpstream(graphData, adj, n.id, new Set()).size);
         });
 
         const nodes = graphData.nodes
             .filter(n => !removed.has(n.id))
             .map(n => {
                 const out = Object.assign({}, n);
-                if (adj.incoming.get(n.id).length > 0) out.collapsible = true;
+                if ((offers.get(n.id) || 0) > 0) out.collapsible = true;
                 if (hidden.has(n.id)) {
                     out.collapsed = true;
                     out.hiddenCount = hidden.get(n.id);

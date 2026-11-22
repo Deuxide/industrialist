@@ -493,6 +493,7 @@ function calculateAll(rerollColors = false) {
     // Re-roll only for a fresh calculation. Toggling Advanced View
     // redraws the same DAG and should not change its color mapping.
     if (rerollColors) {
+        dagCollapsed = new Set();
         currentColorSeed = Math.floor(Math.random() * 2147483647);
         sharedColorAssignments.clear();
         usedSharedColors.clear();
@@ -2140,6 +2141,19 @@ function fitLabel(str, maxChars) {
 // buildGraphData always sets one).
 const DAG_RECYCLE_DEFAULT = '#7fd858';
 
+// Nodes whose upstream steps are folded away. Cleared by each new Run.
+let dagCollapsed = new Set();
+
+// Layout direction: 'RIGHT' (left to right) or 'DOWN' (top to bottom).
+function loadDagDirection() {
+    try {
+        return localStorage.getItem('dagDirection') === 'DOWN' ? 'DOWN' : 'RIGHT';
+    } catch (err) {
+        return 'RIGHT';
+    }
+}
+let dagDirection = loadDagDirection();
+
 // ---- ELK engine loading ------------------------------------------------
 //
 // ELK is ~1.6 MB, so it is loaded the first time the Graphic tab is
@@ -2204,11 +2218,14 @@ async function renderGraphDAG(container, graphData, isAdvanced) {
 
     showDagMessage(container, 'Laying out graph…');
 
+    // Fold collapsed subtrees first; everything below works on this view.
+    const view = DagLayout.collapseGraph(graphData, dagCollapsed);
+
     let layout;
     try {
         const elk = await ensureElk();
         DagLayout.setElk(elk);
-        layout = await DagLayout.layoutGraph(graphData);
+        layout = await DagLayout.layoutGraph(view, { direction: dagDirection });
     } catch (err) {
         if (token !== dagRenderToken) return;
         console.error(err);
@@ -2225,8 +2242,8 @@ async function renderGraphDAG(container, graphData, isAdvanced) {
     if (token !== dagRenderToken) return; // superseded while laying out
 
     try {
-        container.innerHTML = buildDagSvg(graphData, layout, isAdvanced);
-        initDagPanZoom(container, graphData, layout);
+        container.innerHTML = buildDagSvg(view, layout, isAdvanced);
+        initDagPanZoom(container, view, layout);
     } catch (err) {
         console.error(err);
         showDagMessage(
@@ -2389,6 +2406,18 @@ function dagNodeTemplate(node, box, isAdvanced) {
             ? node.inputSummary.split(', ').map(n => DagLayout.prettyName(n)).join(', ')
             : 'NONE';
         const mono = DagLayout.monogramFor(node.label);
+        // Fold control: "▾ fold" to hide the steps feeding this machine, or
+        // "▸ +N" to show the N hidden steps. Mouse via tap; keyboard via C.
+        let fold = '';
+        if (node.collapsed) {
+            fold = `<g class="dag-fold dag-fold--expand" aria-hidden="true" data-collapse-toggle="${svgEsc(node.id)}">
+                <rect x="10" y="${h - 24}" width="64" height="16" rx="8"></rect>
+                <text x="42" y="${h - 12}" text-anchor="middle">▸ +${node.hiddenCount}</text></g>`;
+        } else if (node.collapsible) {
+            fold = `<g class="dag-fold" aria-hidden="true" data-collapse-toggle="${svgEsc(node.id)}">
+                <rect x="10" y="${h - 24}" width="50" height="16" rx="8"></rect>
+                <text x="35" y="${h - 12}" text-anchor="middle">▾ fold</text></g>`;
+        }
 
         return `
         <g ${attrs}>
@@ -2401,6 +2430,7 @@ function dagNodeTemplate(node, box, isAdvanced) {
                 <circle cx="${w - 18}" cy="${h - 18}" r="10" fill="${mono.color}"></circle>
                 <text x="${w - 18}" y="${h - 14.5}" text-anchor="middle">${svgEsc(mono.text)}</text>
             </g>
+            ${fold}
             <title>${svgEsc(node.label)} — exact ${Number(node.exactCount).toFixed(4)}x needed
 Outputs: ${svgEsc(node.outputs.map(o => o.itemName + ' (' + (Number(o.rate) || 0).toFixed(3) + '/s)').join(', '))}
 Inputs: ${svgEsc(inputStr)}</title>
@@ -2538,7 +2568,10 @@ function initDagPanZoom(container, graphData, layout) {
     // Set once the user pans or zooms. Until then a resize refits the
     // whole graph; after that a resize keeps the current view centred.
     let userMoved = false;
-    let selectedId = null;
+    // A fold or direction change re-renders; keep the selection if its node
+    // is still in the view.
+    let selectedId = container._dagKeepSelect || null;
+    container._dagKeepSelect = null;
     let animFrame = 0;
     let resizeFrame = 0;
     let lastSize = { w: 0, h: 0 };
@@ -2686,6 +2719,11 @@ function initDagPanZoom(container, graphData, layout) {
     }
 
     function tapTarget(target) {
+        const fold = target && target.closest ? target.closest('[data-collapse-toggle]') : null;
+        if (fold) {
+            dagToggleCollapse(fold.dataset.collapseToggle);
+            return;
+        }
         const el = target && target.closest ? target.closest('[data-node-id]') : null;
         if (!el) {
             clearSelection();
@@ -2893,6 +2931,13 @@ function initDagPanZoom(container, graphData, layout) {
                 userMoved = false;
                 fitAll(true);
                 break;
+            case 'c':
+            case 'C': {
+                const n = id && nodeById.get(id);
+                if (!n || !(n.collapsible || n.collapsed)) { handled = false; break; }
+                dagToggleCollapse(id);
+                break;
+            }
             default:
                 handled = false;
         }
@@ -2930,6 +2975,7 @@ function initDagPanZoom(container, graphData, layout) {
         fitAll(true);
     };
     container._dagClear = () => clearSelection();
+    container._dagGetSelection = () => selectedId;
     container._dagSearch = (query, commit) => {
         const q = String(query || '').trim().toLowerCase();
         const countEl = document.getElementById('dagSearchCount');
@@ -3029,6 +3075,39 @@ function dagClearSelection() {
     const c = document.getElementById('machineGraph');
     if (c && c._dagClear) c._dagClear();
 }
+
+// Folds or unfolds a node's upstream steps and redraws, keeping the
+// current selection when its node is still visible.
+function dagToggleCollapse(id) {
+    const c = document.getElementById('machineGraph');
+    if (!c || !lastGraphData || !id) return;
+    if (dagCollapsed.has(id)) dagCollapsed.delete(id);
+    else dagCollapsed.add(id);
+    c._dagKeepSelect = c._dagGetSelection ? c._dagGetSelection() : null;
+    const isAdvanced = document.getElementById('advancedToggle')?.checked || false;
+    renderGraphDAG(c, lastGraphData, isAdvanced);
+}
+
+function dagToggleDirection() {
+    dagDirection = dagDirection === 'RIGHT' ? 'DOWN' : 'RIGHT';
+    try { localStorage.setItem('dagDirection', dagDirection); } catch (err) { /* private mode: keep in memory */ }
+    updateDagDirectionButton();
+    const c = document.getElementById('machineGraph');
+    if (!c || !lastGraphData) return;
+    c._dagKeepSelect = c._dagGetSelection ? c._dagGetSelection() : null;
+    const isAdvanced = document.getElementById('advancedToggle')?.checked || false;
+    renderGraphDAG(c, lastGraphData, isAdvanced);
+}
+
+function updateDagDirectionButton() {
+    const btn = document.getElementById('dagDirBtn');
+    if (!btn) return;
+    btn.textContent = dagDirection === 'DOWN' ? '⇅ Top-down' : '⇄ Left-to-right';
+    btn.setAttribute('aria-label', dagDirection === 'DOWN'
+        ? 'Layout: top to bottom. Switch to left to right.'
+        : 'Layout: left to right. Switch to top to bottom.');
+}
+updateDagDirectionButton();
 
 function dagSearchInput(value) {
     const c = document.getElementById('machineGraph');

@@ -693,6 +693,38 @@ button:hover {
     display: none;
 }
 
+/* Fold control: bottom-left pill on machines that have inputs. */
+.dag-fold {
+    cursor: pointer;
+}
+
+.dag-fold rect {
+    fill: #101010;
+    stroke: var(--grey);
+    stroke-width: 1;
+}
+
+.dag-fold text {
+    fill: var(--text);
+    font-family: monospace;
+    font-size: 9.5px;
+    pointer-events: none;
+}
+
+.dag-fold:hover rect {
+    stroke: var(--text);
+}
+
+.dag-fold--expand rect {
+    stroke: var(--accent);
+    stroke-width: 1.5;
+}
+
+.dag-fold--expand text {
+    fill: var(--accent);
+    font-weight: bold;
+}
+
 /* Machine badge in the bottom-right corner. */
 .dag-monogram circle {
     opacity: 0.9;
