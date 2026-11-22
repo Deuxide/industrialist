@@ -1042,3 +1042,40 @@ input:checked+.slider:before {
         overflow-y: visible;
     }
 }
+
+/* ---- Inline banner (validation, import and error messages) ---- */
+.app-banner {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    max-width: min(640px, calc(100vw - 32px));
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--danger);
+    color: #fff;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.app-banner[hidden] { display: none; }
+.app-banner--info { background: var(--secondary); }
+
+.app-banner-text { flex: 1; }
+
+.app-banner-close {
+    background: none;
+    border: 0;
+    color: inherit;
+    font-size: 1.2rem;
+    line-height: 1;
+    padding: 0 2px;
+    cursor: pointer;
+}
+
+.app-banner-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }

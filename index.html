@@ -19,6 +19,12 @@
 
 <body>
 
+    <!-- Inline messages (replaces alert()). Filled by showBanner() in script.js. -->
+    <div id="appBanner" class="app-banner app-banner--error" role="alert" hidden>
+        <span class="app-banner-text"></span>
+        <button type="button" class="app-banner-close" onclick="hideBanner()" aria-label="Dismiss message">×</button>
+    </div>
+
     <!-- ============================================================
          SIDEBAR — recipe creator (collapsible) + compact recipe list.
          Fixed/absolute to the left; scrolls independently of the

@@ -44,6 +44,61 @@ function exportData() {
     URL.revokeObjectURL(url);
 }
 
+// ---- Inline messages (replaces alert()) ----
+// One banner, always in the DOM (see index.html). Text is set with
+// textContent, so messages can carry user-supplied names safely.
+let _bannerTimer = null;
+
+function showBanner(message, kind = 'error') {
+    const el = document.getElementById('appBanner');
+    if (!el) {
+        console.error(message);
+        return;
+    }
+    const text = el.querySelector('.app-banner-text');
+    if (text) text.textContent = message;
+    el.className = `app-banner app-banner--${kind}`;
+    el.hidden = false;
+    clearTimeout(_bannerTimer);
+    if (kind === 'info') _bannerTimer = setTimeout(hideBanner, 5000);
+}
+
+function hideBanner() {
+    const el = document.getElementById('appBanner');
+    if (el) el.hidden = true;
+}
+
+// Log the detail, show a short sentence to the person.
+function reportError(prefix, err) {
+    console.error(err);
+    const detail = err && err.message ? err.message : String(err);
+    showBanner(`${prefix}: ${detail}`);
+}
+
+// Checks that an imported library has the shape the solver relies on.
+// Returns null when it is fine, otherwise a sentence describing the first
+// problem found.
+function validateImportedRecipes(list) {
+    if (!Array.isArray(list)) return 'the file has no recipe list.';
+    if (list.length === 0) return 'the file contains no recipes.';
+
+    const isRateMap = obj =>
+        obj && typeof obj === 'object' && !Array.isArray(obj) &&
+        Object.values(obj).every(v => typeof v === 'number' && Number.isFinite(v) && v >= 0);
+
+    for (let i = 0; i < list.length; i++) {
+        const r = list[i];
+        const where = `recipe ${i + 1}`;
+        if (!r || typeof r !== 'object') return `${where} is not an object.`;
+        if (typeof r.name !== 'string' || !r.name.trim()) return `${where} has no machine name.`;
+        const label = `"${r.name}"`;
+        if (r.id === undefined || r.id === null || r.id === '') return `${label} has no id.`;
+        if (!isRateMap(r.inputs)) return `${label} has invalid inputs.`;
+        if (!isRateMap(r.outputs)) return `${label} has invalid outputs.`;
+    }
+    return null;
+}
+
 function importData() {
     const input = document.createElement('input');
 
@@ -56,30 +111,50 @@ function importData() {
 
         const reader = new FileReader();
 
+        reader.onerror = () => showBanner('Could not read that file.');
+
         reader.onload = event => {
+            let imported;
             try {
-                const imported = JSON.parse(event.target.result);
-                const converted = convertImportedData(imported);
-
-                if (converted === null) {
-                    alert(
-                        "Error importing file: unrecognized recipe format.\n\n" +
-                        "Expected either this app's native { recipes: [...] } " +
-                        "export, or a flat list of single-output recipe entries."
-                    );
-                    return;
-                }
-
-                recipes = converted;
-
-                saveData();
-                displayRecipes();
-
-                alert(`Import Successful! Loaded ${recipes.length} recipe(s).`);
-
+                imported = JSON.parse(event.target.result);
             } catch (err) {
                 console.error(err);
-                alert("Error importing file: Invalid JSON format.");
+                showBanner('Import cancelled: the file is not valid JSON.');
+                return;
+            }
+
+            const converted = convertImportedData(imported);
+            if (converted === null) {
+                showBanner(
+                    "Import cancelled: unrecognised recipe format. Expected this app's " +
+                    "{ recipes: [...] } export, or a flat list of recipe entries."
+                );
+                return;
+            }
+
+            const problem = validateImportedRecipes(converted);
+            if (problem) {
+                showBanner(`Import cancelled: ${problem} Your recipes were not changed.`);
+                return;
+            }
+
+            // Importing replaces the whole library, so confirm before
+            // discarding one that already exists.
+            if (recipes.length > 0 && !confirm(
+                `Replace your ${recipes.length} saved recipe(s) with ${converted.length} from this file?\n\n` +
+                'Export first if you want to keep the current library.')) {
+                return;
+            }
+
+            recipes = converted;
+            displayRecipes();
+
+            try {
+                saveData();
+                showBanner(`Import successful: loaded ${recipes.length} recipe(s).`, 'info');
+            } catch (err) {
+                console.error(err);
+                showBanner('Recipes loaded for this session, but could not be saved in this browser (storage full?).');
             }
         };
 
@@ -316,7 +391,10 @@ function addRecipe() {
     const name = document.getElementById('mName').value.trim();
     const time = parseFloat(document.getElementById('mTime').value);
 
-    if (!name || !time) return alert("Machine Name and Time are required!");
+    if (!name || !time) {
+        showBanner("Machine Name and Time are required.");
+        return;
+    }
 
     // Same rule as the import converter: a non-positive time (most
     // notably -1, used by some recipes for a variable/steam-
@@ -405,7 +483,7 @@ function parseItems(str, time) {
         const parts = p.trim().split(' ');
         const qty = parseFloat(parts[0]);
         const item = parts.slice(1).join(' ').toLowerCase().trim();
-        if (item) {
+        if (item && Number.isFinite(qty)) {
             obj[item] = (obj[item] || 0) + (qty / time);
         }
     });
@@ -437,7 +515,7 @@ function setDagView(view) {
         const graphContainer = document.getElementById('machineGraph');
         const isAdvanced = document.getElementById('advancedToggle')?.checked || false;
         if (graphContainer && !graphContainer.hasChildNodes()) {
-            renderGraphDAG(graphContainer, lastGraphData, isAdvanced);
+            renderGraphDAGSafe(graphContainer, lastGraphData, isAdvanced);
         }
     }
 }
@@ -517,11 +595,17 @@ function calculateAll(rerollColors = false) {
     );
 
     if (!target || isNaN(qty) || isNaN(time) || time <= 0) {
-        alert("Enter a Target Item, Quantity, and Time.");
+        showBanner("Enter a Target Item, Quantity, and Time.");
         return;
     }
 
-    const data = runLogic(target, qty, time);
+    let data;
+    try {
+        data = runLogic(target, qty, time);
+    } catch (err) {
+        reportError("The simulation failed", err);
+        return;
+    }
 
     activeRecipeIds = new Set(
         Object.values(data.treeData)
@@ -566,12 +650,17 @@ function calculateAll(rerollColors = false) {
     // Build once per simulation run (cheap relative to layout) and
     // store so switching tabs or toggling Advanced View doesn't need
     // to re-run the solver — just re-layout/re-render from cached data.
-    lastGraphData = buildGraphDataRoot(data, target);
+    try {
+        lastGraphData = buildGraphDataRoot(data, target);
+    } catch (err) {
+        lastGraphData = null;
+        reportError("The production graph could not be built", err);
+    }
 
     if (graphContainer) {
         const isAdvanced = document.getElementById('advancedToggle')?.checked || false;
         if (activeDagView === 'graphic') {
-            renderGraphDAG(graphContainer, lastGraphData, isAdvanced);
+            renderGraphDAGSafe(graphContainer, lastGraphData, isAdvanced);
         }
     }
 
@@ -1412,7 +1501,7 @@ function renderNode(
         if (source && recycledAmount >= requiredRate - EPS) {
 
             const recycledColor = getSharedItemColor(itemName);
-            const anchorId = `node-recipe-${source.recipeId}`;
+            const anchorId = `node-recipe-${escapeHtml(source.recipeId)}`;
 
             const rateStr = isAdvanced
                 ? ` (${recycledAmount.toFixed(3)} ${escapeHtml(itemName)}/s)`
@@ -1444,7 +1533,7 @@ function renderNode(
         if (source && recycledAmount > EPS) {
 
             const recycledColor = getSharedItemColor(itemName);
-            const anchorId = `node-recipe-${source.recipeId}`;
+            const anchorId = `node-recipe-${escapeHtml(source.recipeId)}`;
 
             const rateStr = isAdvanced
                 ? ` (${recycledAmount.toFixed(3)}/s recycled, ${trulyRawAmount.toFixed(3)}/s raw)`
@@ -1484,7 +1573,7 @@ function renderNode(
         const displayVal =
             isAdvanced
                 ? `${requiredRate.toFixed(3)} ${escapeHtml(itemName)}/s`
-                : itemName;
+                : escapeHtml(itemName);
 
         const rawSharedBadge = isShared
             ? `<span style="
@@ -1535,7 +1624,7 @@ function renderNode(
         const displayVal =
             isAdvanced
                 ? `${requiredRate.toFixed(3)} ${escapeHtml(itemName)}/s`
-                : itemName;
+                : escapeHtml(itemName);
 
         return `
             <div style="
@@ -1645,7 +1734,7 @@ function renderNode(
         // (and separately-rounded) machines where there's only one.
         if (renderedRecipes.has(node.recipeId)) {
 
-            const anchorId = `node-recipe-${node.recipeId}`;
+            const anchorId = `node-recipe-${escapeHtml(node.recipeId)}`;
             const pointerColor = getSharedItemColor(itemName);
 
             const rateStr = isAdvanced
@@ -1689,8 +1778,8 @@ function renderNode(
 
             outputStrings.push(
                 isAdvanced
-                    ? `${totalRate.toFixed(3)} ${out}/s`
-                    : out
+                    ? `${totalRate.toFixed(3)} ${escapeHtml(out)}/s`
+                    : escapeHtml(out)
             );
         }
 
@@ -1702,8 +1791,8 @@ function renderNode(
         let inputStrings =
             node.inputs.map(inp =>
                 isAdvanced
-                    ? `${inp.rate.toFixed(3)} ${inp.itemName}/s`
-                    : inp.itemName
+                    ? `${inp.rate.toFixed(3)} ${escapeHtml(inp.itemName)}/s`
+                    : escapeHtml(inp.itemName)
             );
 
 
@@ -1766,7 +1855,7 @@ function renderNode(
             : "";
 
         html += `
-            <div id="node-recipe-${node.recipeId}" style="
+            <div id="node-recipe-${escapeHtml(node.recipeId)}" style="
                 font-family: monospace;
                 white-space: nowrap;
                 margin-bottom: 0px;
@@ -2220,6 +2309,16 @@ function cancelDagRender(container) {
 function showDagMessage(container, html, isError) {
     container.innerHTML =
         `<div class="dag-status${isError ? ' dag-status--error' : ''}">${html}</div>`;
+}
+
+// Every caller goes through here, so an unexpected failure while drawing
+// the graph is reported and the Text Tree keeps working.
+function renderGraphDAGSafe(container, graphData, isAdvanced) {
+    return renderGraphDAG(container, graphData, isAdvanced).catch(err => {
+        console.error(err);
+        showDagMessage(container, 'The graph could not be drawn. Use the Text Tree instead.', true);
+        showBanner(`The production graph could not be drawn: ${err && err.message ? err.message : err}`);
+    });
 }
 
 async function renderGraphDAG(container, graphData, isAdvanced) {
@@ -3095,7 +3194,7 @@ function dagToggleCollapse(id) {
     else dagCollapsed.add(id);
     c._dagKeepSelect = c._dagGetSelection ? c._dagGetSelection() : null;
     const isAdvanced = document.getElementById('advancedToggle')?.checked || false;
-    renderGraphDAG(c, lastGraphData, isAdvanced);
+    renderGraphDAGSafe(c, lastGraphData, isAdvanced);
 }
 
 function dagToggleDirection() {
@@ -3107,7 +3206,7 @@ function dagToggleDirection() {
     if (!c || !lastGraphData) return;
     c._dagKeepSelect = c._dagGetSelection ? c._dagGetSelection() : null;
     const isAdvanced = document.getElementById('advancedToggle')?.checked || false;
-    renderGraphDAG(c, lastGraphData, isAdvanced);
+    renderGraphDAGSafe(c, lastGraphData, isAdvanced);
 }
 
 function updateDagDirectionButton() {
@@ -3302,7 +3401,7 @@ function dagExportPng() {
     };
     img.onerror = () => {
         URL.revokeObjectURL(url);
-        alert('Could not render the graph to PNG. Try the SVG export instead.');
+        showBanner('Could not render the graph to PNG. Try the SVG export instead.');
     };
     img.src = url;
 }
