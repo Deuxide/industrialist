@@ -1899,14 +1899,15 @@ function renderNode(
 // Node shape:
 //   {
 //     id,                 // unique within this render pass
-//     kind,                // 'machine' | 'raw' | 'recycled' | 'cycle' | 'ref'
+//     kind,                // 'machine' | 'raw' | 'cycle'
+//                          // (a recycled raw leaf is a 'raw' node with
+//                          //  partialRecycle set, or no raw node at all)
 //     label,                // machine or item name
 //     itemName,             // item this node represents/produces
 //     count, exactCount,    // machine count (machine nodes only)
 //     rate,                 // it/s, for advanced-view labels
 //     isShared, sharedColor,
-//     recipeId,
-//     refTargetId           // for 'ref' nodes: id of the node this points to
+//     recipeId
 //   }
 //
 // Edge shape: { from, to, itemName, rate }
@@ -1924,7 +1925,7 @@ function buildGraphData(
     renderedRecipes,
     nodes,
     edges,
-    nodeIdForItem,     // item -> id of its full-expansion node (for 'ref'/back-edges)
+    nodeIdForItem,     // item -> id of its full-expansion node (for cycle back-edges)
     nodeIdForRecipe,   // recipeId -> id of its machine node
     parentNodeId       // id of the node that consumes this item (edge target), or null for root
 ) {
