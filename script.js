@@ -17,6 +17,7 @@ window.onload = () => {
     }
 
     displayRecipes();
+    restoreStateFromHash();
 };
 
 
@@ -426,6 +427,7 @@ let lastGraphData = null;
 function setDagView(view) {
     activeDagView = view;
     updateDagViewVisibility();
+    writeStateToHash();
 
     // Lazily render the graphic view the first time it's switched to,
     // using whatever data is currently cached from the last run.
@@ -575,6 +577,7 @@ function calculateAll(rerollColors = false) {
     }
 
     updateDagViewVisibility();
+    writeStateToHash();
 
     const bank =
         parseFloat(
@@ -3092,6 +3095,7 @@ function dagToggleDirection() {
     dagDirection = dagDirection === 'RIGHT' ? 'DOWN' : 'RIGHT';
     try { localStorage.setItem('dagDirection', dagDirection); } catch (err) { /* private mode: keep in memory */ }
     updateDagDirectionButton();
+    writeStateToHash();
     const c = document.getElementById('machineGraph');
     if (!c || !lastGraphData) return;
     c._dagKeepSelect = c._dagGetSelection ? c._dagGetSelection() : null;
@@ -3117,6 +3121,183 @@ function dagSearchInput(value) {
 function dagSearchSubmit(value) {
     const c = document.getElementById('machineGraph');
     if (c && c._dagSearch) c._dagSearch(value, true);
+}
+
+// ---- SHARE / EXPORT ------------------------------------------------------
+//
+// The hash carries the run inputs and view settings, so a link reopens the
+// same plan. Recipes are not in the link: they live in this browser.
+
+function writeStateToHash() {
+    if (!lastGraphData) return;
+    const params = new URLSearchParams();
+    params.set('t', lastGraphData.target);
+    const qty = document.getElementById('targetQty')?.value;
+    const time = document.getElementById('targetTime')?.value;
+    const bank = document.getElementById('currentBank')?.value;
+    if (qty) params.set('q', qty);
+    if (time) params.set('s', time);
+    if (bank) params.set('b', bank);
+    if (document.getElementById('advancedToggle')?.checked) params.set('adv', '1');
+    params.set('dir', dagDirection);
+    params.set('view', activeDagView);
+    try {
+        history.replaceState(null, '', '#' + params.toString());
+    } catch (err) { /* some embedded contexts forbid it: the page still works */ }
+}
+
+function restoreStateFromHash() {
+    const raw = location.hash.replace(/^#/, '');
+    if (!raw) return;
+    const params = new URLSearchParams(raw);
+    const target = params.get('t');
+    if (!target) return;
+
+    const set = (id, value) => {
+        const el = document.getElementById(id);
+        if (el && value !== null) el.value = value;
+    };
+    set('targetItem', target);
+    set('targetQty', params.get('q'));
+    set('targetTime', params.get('s'));
+    set('currentBank', params.get('b'));
+    const adv = document.getElementById('advancedToggle');
+    if (adv) adv.checked = params.get('adv') === '1';
+    if (params.get('dir') === 'DOWN' || params.get('dir') === 'RIGHT') {
+        dagDirection = params.get('dir');
+        try { localStorage.setItem('dagDirection', dagDirection); } catch (err) { /* keep in memory */ }
+        updateDagDirectionButton();
+    }
+
+    // Only run when there is a recipe library to run against.
+    if (recipes.length === 0) return;
+    calculateAll(true);
+    if (params.get('view') === 'graphic') setDagView('graphic');
+}
+
+// Colour and layout rules the graph needs, copied into an exported SVG so it
+// looks the same outside the page.
+const DAG_EXPORT_VARS = [
+    '--dag-bg', '--dag-grid', '--dag-node-fill', '--dag-leaf-fill', '--dag-raw',
+    '--dag-edge', '--dag-recycle', '--dag-label-bg', '--dag-out', '--dag-in',
+    '--dag-dim-text', '--dag-dim-opacity', '--text', '--accent', '--grey',
+    '--danger', '--success', '--card-dark'
+];
+
+// Replaces the page's colour variables with their values, so the text works
+// outside the page. Element-level variables (--item-color) are left alone:
+// each element sets them in its own style attribute.
+function dagResolveVars(text, canvas) {
+    const cs = getComputedStyle(canvas);
+    let out = text;
+    DAG_EXPORT_VARS.forEach(name => {
+        const value = cs.getPropertyValue(name).trim();
+        if (value) out = out.split(`var(${name})`).join(value);
+    });
+    return out;
+}
+
+function dagExportCss(canvas) {
+    const resolve = text => dagResolveVars(text, canvas);
+    let css = '';
+    Array.from(document.styleSheets).forEach(sheet => {
+        let rules;
+        try { rules = sheet.cssRules; } catch (err) { return; }
+        Array.from(rules).forEach(rule => {
+            if (!rule.selectorText) return;
+            if (!/dag-|is-lineage|is-selected|sr-only/.test(rule.selectorText)) return;
+            css += resolve(rule.cssText) + '\n';
+        });
+    });
+    return css;
+}
+
+// The whole graph as an SVG string, independent of the current pan and zoom
+// and selection. Returns null if no graph is on screen.
+function dagExportSvgString() {
+    const canvas = document.getElementById('machineGraph');
+    const svg = canvas && canvas.querySelector('#dagSvg');
+    const model = canvas && canvas._dagModel;
+    if (!svg || !model) return null;
+
+    const W = Math.ceil(model.layout.width);
+    const H = Math.ceil(model.layout.height);
+    const clone = svg.cloneNode(true);
+    ['style', 'tabindex', 'role', 'aria-label'].forEach(a => clone.removeAttribute(a));
+    clone.classList.remove('dag-svg', 'dag-dim');
+    clone.setAttribute('width', W);
+    clone.setAttribute('height', H);
+    clone.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+    const viewport = clone.querySelector('#dagViewport');
+    if (viewport) viewport.removeAttribute('transform');
+    clone.querySelectorAll('.is-lineage, .is-selected').forEach(el => el.classList.remove('is-lineage', 'is-selected'));
+    clone.querySelectorAll('[tabindex]').forEach(el => el.removeAttribute('tabindex'));
+
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', W);
+    bg.setAttribute('height', H);
+    bg.setAttribute('fill', getComputedStyle(canvas).getPropertyValue('--dag-bg').trim() || '#0a0a0a');
+    clone.insertBefore(bg, clone.firstChild);
+
+    const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    style.textContent = dagExportCss(canvas);
+    clone.insertBefore(style, clone.firstChild);
+
+    return dagResolveVars(new XMLSerializer().serializeToString(clone), canvas);
+}
+
+function dagExportName(ext) {
+    const target = (lastGraphData && lastGraphData.target) || 'graph';
+    const date = new Date().toISOString().slice(0, 10);
+    return `industrialist-${target}-${date}.${ext}`;
+}
+
+function dagDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function dagExportSvg() {
+    const svg = dagExportSvgString();
+    if (!svg) return;
+    dagDownload(new Blob([svg], { type: 'image/svg+xml' }), dagExportName('svg'));
+}
+
+function dagExportPng() {
+    const svg = dagExportSvgString();
+    const model = document.getElementById('machineGraph')?._dagModel;
+    if (!svg || !model) return;
+    const W = Math.ceil(model.layout.width);
+    const H = Math.ceil(model.layout.height);
+    const SCALE = 2;
+
+    const img = new Image();
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = W * SCALE;
+        canvas.height = H * SCALE;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(SCALE, SCALE);
+        ctx.drawImage(img, 0, 0, W, H);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(blob => {
+            if (blob) dagDownload(blob, dagExportName('png'));
+        }, 'image/png');
+    };
+    img.onerror = () => {
+        URL.revokeObjectURL(url);
+        alert('Could not render the graph to PNG. Try the SVG export instead.');
+    };
+    img.src = url;
 }
 
 function escapeHtml(str) {
