@@ -357,10 +357,147 @@
         return { nodes, edges: edgeSet, upNodes, downNodes };
     }
 
+    // ---- readable names -------------------------------------------------
+    //
+    // Item ids are hyphenated (`water-free-gas`). Display names title-case
+    // them; the raw id stays in data-* attributes and tooltips.
+    const NAME_OVERRIDES = {};
+
+    function prettyName(id) {
+        const raw = String(id || '');
+        if (Object.prototype.hasOwnProperty.call(NAME_OVERRIDES, raw)) return NAME_OVERRIDES[raw];
+        return raw
+            .split(/[-_]+/)
+            .filter(Boolean)
+            .map(w => (/^\d/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+            .join(' ');
+    }
+
+    // Machine badge: two-letter initials on a colour picked by hashing the
+    // machine name, so the same machine always gets the same badge.
+    const MONOGRAM_PALETTE = [
+        '#e07a5f', '#81b29a', '#f2cc8f', '#3d85c6',
+        '#c27ba0', '#6aa84f', '#e69138', '#76a5af'
+    ];
+
+    function monogramFor(name) {
+        const words = prettyName(name).split(' ').filter(Boolean);
+        const letters = words.length > 1
+            ? words[0].charAt(0) + words[1].charAt(0)
+            : (words[0] || '?').slice(0, 2);
+        let h = 0;
+        const key = String(name || '');
+        for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+        return {
+            text: letters.toUpperCase(),
+            color: MONOGRAM_PALETTE[h % MONOGRAM_PALETTE.length]
+        };
+    }
+
+    // ---- label placement -------------------------------------------------
+    //
+    // Greedy: highest priority first; a label is dropped if its box would
+    // overlap a node or a label already placed. Dropped labels stay
+    // available in the edge's tooltip.
+    function placeLabels(items, obstacles) {
+        const placed = (obstacles || []).map(o => ({ x: o.x, y: o.y, w: o.w, h: o.h }));
+        const accepted = new Set();
+        const order = items.slice().sort((a, b) => (b.priority - a.priority) || (a.order - b.order));
+        order.forEach(it => {
+            const overlaps = placed.some(p =>
+                it.x < p.x + p.w && p.x < it.x + it.w && it.y < p.y + p.h && p.y < it.y + it.h
+            );
+            if (overlaps) return;
+            placed.push({ x: it.x, y: it.y, w: it.w, h: it.h });
+            accepted.add(it.id);
+        });
+        return accepted;
+    }
+
+    // ---- collapse ----------------------------------------------------------
+    //
+    // Collapsing a node hides the upstream steps that exist only to feed it.
+    // A step is hidden only when every consumer of it is also hidden (or is
+    // the collapsed node), so anything shared with another part of the plan
+    // stays visible. Returns a smaller { nodes, edges } graph; collapsed
+    // nodes carry `collapsed` and `hiddenCount`, and any node that has
+    // inputs carries `collapsible`.
+    // Steps that exist only to feed `c`, given steps already hidden.
+    function exclusiveUpstream(graphData, adj, c, removed) {
+        const cand = new Set();
+        const stack = [c];
+        while (stack.length) {
+            const cur = stack.pop();
+            adj.incoming.get(cur).forEach(i => {
+                const from = graphData.edges[i].from;
+                if (from !== c && !cand.has(from) && !removed.has(from)) {
+                    cand.add(from);
+                    stack.push(from);
+                }
+            });
+        }
+
+        let changed = true;
+        while (changed) {
+            changed = false;
+            for (const x of cand) {
+                const feedsVisible = adj.outgoing.get(x).some(i => {
+                    const t = graphData.edges[i].to;
+                    return !(t === c || cand.has(t) || removed.has(t));
+                });
+                if (feedsVisible) {
+                    cand.delete(x);
+                    changed = true;
+                    break;
+                }
+            }
+        }
+        return cand;
+    }
+
+    function collapseGraph(graphData, collapsed) {
+        const adj = buildAdjacency(graphData);
+        const ids = new Set(graphData.nodes.map(n => n.id));
+        const removed = new Set();
+        const hidden = new Map();
+
+        const targets = [...(collapsed || [])].filter(id =>
+            ids.has(id) && adj.incoming.get(id).length > 0
+        );
+        targets.forEach(c => {
+            const cand = exclusiveUpstream(graphData, adj, c, removed);
+            cand.forEach(x => removed.add(x));
+            hidden.set(c, cand.size);
+        });
+
+        // A node offers a fold only if folding would hide something.
+        const offers = new Map();
+        graphData.nodes.forEach(n => {
+            if (adj.incoming.get(n.id).length === 0) return;
+            offers.set(n.id, exclusiveUpstream(graphData, adj, n.id, new Set()).size);
+        });
+
+        const nodes = graphData.nodes
+            .filter(n => !removed.has(n.id))
+            .map(n => {
+                const out = Object.assign({}, n);
+                if ((offers.get(n.id) || 0) > 0) out.collapsible = true;
+                if (hidden.has(n.id)) {
+                    out.collapsed = true;
+                    out.hiddenCount = hidden.get(n.id);
+                }
+                return out;
+            });
+
+        const keep = new Set(nodes.map(n => n.id));
+        const edges = graphData.edges.filter(e => keep.has(e.from) && keep.has(e.to));
+        return { nodes, edges, target: graphData.target };
+    }
+
     return {
         NODE_W, NODE_H_MACHINE, NODE_H_LEAF, DEFAULTS,
         nodeSize, buildElkGraph, extractLayout, layoutGraph, setElk,
         signature, clearCache, roundedPath, labelAnchor, buildAdjacency,
-        computeLineage
+        computeLineage, prettyName, monogramFor, placeLabels, collapseGraph
     };
 });

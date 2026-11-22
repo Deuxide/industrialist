@@ -17,6 +17,7 @@ window.onload = () => {
     }
 
     displayRecipes();
+    restoreStateFromHash();
 };
 
 
@@ -426,6 +427,7 @@ let lastGraphData = null;
 function setDagView(view) {
     activeDagView = view;
     updateDagViewVisibility();
+    writeStateToHash();
 
     // Lazily render the graphic view the first time it's switched to,
     // using whatever data is currently cached from the last run.
@@ -493,6 +495,7 @@ function calculateAll(rerollColors = false) {
     // Re-roll only for a fresh calculation. Toggling Advanced View
     // redraws the same DAG and should not change its color mapping.
     if (rerollColors) {
+        dagCollapsed = new Set();
         currentColorSeed = Math.floor(Math.random() * 2147483647);
         sharedColorAssignments.clear();
         usedSharedColors.clear();
@@ -574,6 +577,7 @@ function calculateAll(rerollColors = false) {
     }
 
     updateDagViewVisibility();
+    writeStateToHash();
 
     const bank =
         parseFloat(
@@ -2140,6 +2144,19 @@ function fitLabel(str, maxChars) {
 // buildGraphData always sets one).
 const DAG_RECYCLE_DEFAULT = '#7fd858';
 
+// Nodes whose upstream steps are folded away. Cleared by each new Run.
+let dagCollapsed = new Set();
+
+// Layout direction: 'RIGHT' (left to right) or 'DOWN' (top to bottom).
+function loadDagDirection() {
+    try {
+        return localStorage.getItem('dagDirection') === 'DOWN' ? 'DOWN' : 'RIGHT';
+    } catch (err) {
+        return 'RIGHT';
+    }
+}
+let dagDirection = loadDagDirection();
+
 // ---- ELK engine loading ------------------------------------------------
 //
 // ELK is ~1.6 MB, so it is loaded the first time the Graphic tab is
@@ -2204,11 +2221,14 @@ async function renderGraphDAG(container, graphData, isAdvanced) {
 
     showDagMessage(container, 'Laying out graph…');
 
+    // Fold collapsed subtrees first; everything below works on this view.
+    const view = DagLayout.collapseGraph(graphData, dagCollapsed);
+
     let layout;
     try {
         const elk = await ensureElk();
         DagLayout.setElk(elk);
-        layout = await DagLayout.layoutGraph(graphData);
+        layout = await DagLayout.layoutGraph(view, { direction: dagDirection });
     } catch (err) {
         if (token !== dagRenderToken) return;
         console.error(err);
@@ -2225,8 +2245,8 @@ async function renderGraphDAG(container, graphData, isAdvanced) {
     if (token !== dagRenderToken) return; // superseded while laying out
 
     try {
-        container.innerHTML = buildDagSvg(graphData, layout, isAdvanced);
-        initDagPanZoom(container, graphData, layout);
+        container.innerHTML = buildDagSvg(view, layout, isAdvanced);
+        initDagPanZoom(container, view, layout);
     } catch (err) {
         console.error(err);
         showDagMessage(
@@ -2291,15 +2311,38 @@ function buildDagMarkerDefs(graphData) {
     return `<defs>${defs}</defs>`;
 }
 
-function dagEdgeTemplate(edge, index, points, isAdvanced) {
+// Edge colour: a byproduct's colour for recycle edges, the item's colour
+// for shared edges, otherwise the theme default.
+function dagEdgeColor(edge) {
+    if (edge.isRecycleEdge) return edge.sharedColor || DAG_RECYCLE_DEFAULT;
+    if (edge.isSharedEdge && edge.sharedColor) return edge.sharedColor;
+    return null;
+}
+
+// Line width scales with flow (log scale, so one huge flow does not
+// swamp the rest): 1.5px for the smallest flow up to 4.5px for the largest.
+function dagEdgeWidth(rate, maxRate) {
+    const r = Number(rate) || 0;
+    if (!maxRate || maxRate <= 0) return 2;
+    const t = Math.min(1, Math.max(0, Math.log(1 + r) / Math.log(1 + maxRate)));
+    return +(1.5 + 3 * t).toFixed(2);
+}
+
+// Label text: the item's name; with Advanced View, the rate as well.
+function dagEdgeLabelText(edge, isAdvanced) {
+    const name = DagLayout.prettyName(edge.itemName);
+    const prefix = edge.isRecycleEdge ? '♻ ' : '';
+    if (!isAdvanced) return `${prefix}${name}`;
+    return `${prefix}${(Number(edge.rate) || 0).toFixed(2)}/s ${name}`;
+}
+
+function dagEdgeTemplate(edge, index, points, maxRate) {
     const d = DagLayout.roundedPath(points, 8);
-    if (!d) return { recycle: false, html: '' };
+    if (!d) return '';
 
     const isRecycle = !!edge.isRecycleEdge;
     const isShared = !isRecycle && !!edge.isSharedEdge;
-    const color = isRecycle
-        ? (edge.sharedColor || DAG_RECYCLE_DEFAULT)
-        : (isShared ? edge.sharedColor || null : null);
+    const color = dagEdgeColor(edge);
 
     let marker = 'arrowhead-plain';
     if (isRecycle) marker = dagMarkerId('recycle', color);
@@ -2310,40 +2353,27 @@ function dagEdgeTemplate(edge, index, points, isAdvanced) {
     if (isShared) classes.push('dag-edge--shared');
 
     const styleAttr = color ? ` style="--item-color:${svgEsc(color)}"` : '';
-
     const rate = Number(edge.rate) || 0;
-    const tooltip = isRecycle
-        ? (isAdvanced
-            ? `♻ recycled: ${rate.toFixed(2)}/s ${edge.itemName}`
-            : `♻ recycled ${edge.itemName}`)
-        : (isAdvanced
-            ? `${rate.toFixed(2)}/s ${edge.itemName}`
-            : edge.itemName);
+    const tip = `${rate.toFixed(2)}/s ${DagLayout.prettyName(edge.itemName)}`;
+    const tooltip = isRecycle ? `♻ recycled: ${tip}` : tip;
 
-    let html = `
+    return `
         <g class="${classes.join(' ')}" aria-hidden="true" data-edge-id="e${index}" data-from="${svgEsc(edge.from)}" data-to="${svgEsc(edge.to)}" data-item="${svgEsc(edge.itemName)}"${styleAttr}>
-            <path d="${d}" marker-end="url(#${marker})"></path>
+            <path d="${d}" stroke-width="${dagEdgeWidth(rate, maxRate)}" marker-end="url(#${marker})"></path>
             <title>${svgEsc(tooltip)}</title>
         </g>`;
+}
 
-    if (isRecycle) {
-        const labelText = isAdvanced
-            ? `♻ ${edge.itemName} ${rate.toFixed(2)}/s`
-            : `♻ ${edge.itemName}`;
-        const labelW = Math.min(180, 14 + labelText.length * 6.1);
-        const anchor = DagLayout.labelAnchor(points);
-        // Sit the pill just above the longest segment so it neither
-        // covers the line nor the arrowhead.
-        const lx = anchor.x - labelW / 2;
-        const ly = anchor.y - 9 - 14;
-        html += `
-        <g class="dag-edge-label" data-edge-id="e${index}" transform="translate(${lx.toFixed(1)},${ly.toFixed(1)})" pointer-events="none"${styleAttr}>
-            <rect width="${labelW.toFixed(1)}" height="18" rx="9"></rect>
-            <text x="${(labelW / 2).toFixed(1)}" y="13" text-anchor="middle">${svgEsc(fitLabel(labelText, 26))}</text>
+// A placed edge label. `item` carries the position computed by buildDagSvg.
+function dagEdgeLabelHtml(edge, index, item) {
+    const color = dagEdgeColor(edge);
+    const styleAttr = color ? ` style="--item-color:${svgEsc(color)}"` : '';
+    const cls = edge.isRecycleEdge ? 'dag-edge-label dag-edge-label--recycle' : 'dag-edge-label';
+    return `
+        <g class="${cls}" data-edge-id="e${index}" transform="translate(${item.x.toFixed(1)},${item.y.toFixed(1)})" pointer-events="none"${styleAttr}>
+            <rect width="${item.w.toFixed(1)}" height="${item.h}" rx="${item.h / 2}"></rect>
+            <text x="${(item.w / 2).toFixed(1)}" y="13" text-anchor="middle">${svgEsc(item.text)}</text>
         </g>`;
-    }
-
-    return { recycle: isRecycle, html };
 }
 
 function dagNodeTemplate(node, box, isAdvanced) {
@@ -2362,20 +2392,35 @@ function dagNodeTemplate(node, box, isAdvanced) {
     if (glowColor) styleParts.push(`--glow-color:${svgEsc(hexToRgbaShared(glowColor, 0.6))}`);
     const styleAttr = styleParts.length ? ` style="${styleParts.join(';')}"` : '';
 
-    const ariaLabel = node.kind === 'machine'
-        ? `${node.count}x ${node.label}, makes ${node.outputs.map(o => o.itemName).join(', ')}`
-        : `${node.kind} ${node.itemName}`;
+    const itemTitle = node.kind === 'machine'
+        ? `${node.count}x ${node.label}, makes ${node.outputs.map(o => DagLayout.prettyName(o.itemName)).join(', ')}`
+        : `${node.kind} ${DagLayout.prettyName(node.itemName)}`;
 
     const attrs =
         `class="${classes.join(' ')}" data-node-id="${svgEsc(node.id)}" data-kind="${svgEsc(node.kind)}"` +
-        ` tabindex="0" role="button" aria-label="${svgEsc(ariaLabel)}"` +
+        ` tabindex="0" role="button" aria-label="${svgEsc(itemTitle)}"` +
         ` transform="translate(${x.toFixed(1)},${y.toFixed(1)})"${styleAttr}`;
 
     if (node.kind === 'machine') {
         const outStr = isAdvanced
-            ? node.outputs.map(o => `${o.rate.toFixed(2)} ${o.itemName}/s`).join(', ')
-            : node.outputs.map(o => o.itemName).join(', ');
-        const inputStr = node.inputSummary || 'NONE';
+            ? node.outputs.map(o => `${(Number(o.rate) || 0).toFixed(2)} ${DagLayout.prettyName(o.itemName)}/s`).join(', ')
+            : node.outputs.map(o => DagLayout.prettyName(o.itemName)).join(', ');
+        const inputStr = node.inputSummary
+            ? node.inputSummary.split(', ').map(n => DagLayout.prettyName(n)).join(', ')
+            : 'NONE';
+        const mono = DagLayout.monogramFor(node.label);
+        // Fold control: "▾ fold" to hide the steps feeding this machine, or
+        // "▸ +N" to show the N hidden steps. Mouse via tap; keyboard via C.
+        let fold = '';
+        if (node.collapsed) {
+            fold = `<g class="dag-fold dag-fold--expand" aria-hidden="true" data-collapse-toggle="${svgEsc(node.id)}">
+                <rect x="10" y="${h - 24}" width="64" height="16" rx="8"></rect>
+                <text x="42" y="${h - 12}" text-anchor="middle">▸ +${node.hiddenCount}</text></g>`;
+        } else if (node.collapsible) {
+            fold = `<g class="dag-fold" aria-hidden="true" data-collapse-toggle="${svgEsc(node.id)}">
+                <rect x="10" y="${h - 24}" width="50" height="16" rx="8"></rect>
+                <text x="35" y="${h - 12}" text-anchor="middle">▾ fold</text></g>`;
+        }
 
         return `
         <g ${attrs}>
@@ -2384,8 +2429,13 @@ function dagNodeTemplate(node, box, isAdvanced) {
             <text class="dag-t-out" x="10" y="38">OUT: ${svgEsc(fitLabel(outStr, 26))}</text>
             <text class="dag-t-in" x="10" y="54">IN: ${svgEsc(fitLabel(inputStr, 30))}</text>
             ${node.isShared ? `<text class="dag-t-badge" x="${w - 10}" y="16" text-anchor="end">⑂ shared</text>` : ''}
-            <title>${svgEsc(node.label)} — exact ${node.exactCount.toFixed(4)}x needed
-Outputs: ${svgEsc(node.outputs.map(o => o.itemName + ' (' + o.rate.toFixed(3) + '/s)').join(', '))}
+            <g class="dag-monogram" pointer-events="none">
+                <circle cx="${w - 18}" cy="${h - 18}" r="10" fill="${mono.color}"></circle>
+                <text x="${w - 18}" y="${h - 14.5}" text-anchor="middle">${svgEsc(mono.text)}</text>
+            </g>
+            ${fold}
+            <title>${svgEsc(node.label)} — exact ${Number(node.exactCount).toFixed(4)}x needed
+Outputs: ${svgEsc(node.outputs.map(o => o.itemName + ' (' + (Number(o.rate) || 0).toFixed(3) + '/s)').join(', '))}
 Inputs: ${svgEsc(inputStr)}</title>
         </g>`;
     }
@@ -2399,28 +2449,56 @@ Inputs: ${svgEsc(inputStr)}</title>
     } else if (node.kind === 'cycle') {
         prefix = '[CYCLE] ';
     }
-    const rateStr = isAdvanced ? ` (${Number(node.rate).toFixed(2)}/s)` : '';
+    const rateStr = isAdvanced ? ` (${(Number(node.rate) || 0).toFixed(2)}/s)` : '';
 
     return `
         <g ${attrs}>
             <rect width="${w}" height="${h}" rx="6"></rect>
-            <text class="dag-t-leaf" x="10" y="18">${prefix}${svgEsc(fitLabel(node.itemName, 24))}</text>
+            <text class="dag-t-leaf" x="10" y="18">${prefix}${svgEsc(fitLabel(DagLayout.prettyName(node.itemName), 24))}</text>
             ${extra ? `<text class="dag-t-extra" x="10" y="34">${svgEsc(fitLabel(extra, 30))}</text>` : ''}
             <title>${svgEsc(node.itemName)}${svgEsc(rateStr)}${extra ? ' — ' + svgEsc(extra) : ''}</title>
         </g>`;
 }
 
 function buildDagSvg(graphData, layout, isAdvanced) {
-    // Recycle edges are drawn first so ordinary edges layer on top and
-    // stay easy to trace.
-    let recycleHtml = '';
-    let plainHtml = '';
+    const maxRate = graphData.edges.reduce((m, e) => Math.max(m, Number(e.rate) || 0), 0);
+
+    // Edges that have a route, in graph order.
+    const routed = [];
     graphData.edges.forEach((edge, i) => {
         const points = layout.edges.get(`e${i}`);
-        if (!points || points.length < 2) return;
-        const out = dagEdgeTemplate(edge, i, points, isAdvanced);
-        if (out.recycle) recycleHtml += out.html;
-        else plainHtml += out.html;
+        if (points && points.length >= 2) routed.push({ edge, i, points });
+    });
+
+    // Labels: every edge gets one, but placed greedily so none sits on a
+    // node or on another label. Recycle edges win ties, then shared, then
+    // larger flows.
+    const obstacles = [...layout.nodes.values()].map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h }));
+    const labelItems = routed.map(({ edge, i, points }, order) => {
+        const text = fitLabel(dagEdgeLabelText(edge, isAdvanced), 28);
+        const w = Math.min(200, 14 + text.length * 6.1);
+        const a = DagLayout.labelAnchor(points);
+        const rateN = maxRate > 0 ? (Number(edge.rate) || 0) / maxRate : 0;
+        const kind = edge.isRecycleEdge ? 3 : (edge.isSharedEdge ? 2 : 1);
+        return {
+            id: i, order, priority: kind + rateN * 0.5,
+            x: a.x - w / 2, y: a.y - 23, w, h: 18, text
+        };
+    });
+    const accepted = DagLayout.placeLabels(labelItems, obstacles);
+
+    let edgesHtml = '';
+    let recycleHtml = '';
+    routed.forEach(({ edge, i, points }) => {
+        const html = dagEdgeTemplate(edge, i, points, maxRate);
+        if (edge.isRecycleEdge) recycleHtml += html;
+        else edgesHtml += html;
+    });
+
+    let labelsHtml = '';
+    labelItems.forEach(item => {
+        if (!accepted.has(item.id)) return;
+        labelsHtml += dagEdgeLabelHtml(graphData.edges[item.id], item.id, item);
     });
 
     let nodesHtml = '';
@@ -2435,13 +2513,13 @@ function buildDagSvg(graphData, layout, isAdvanced) {
             ${buildDagMarkerDefs(graphData)}
             <g id="dagViewport">
                 ${recycleHtml}
-                ${plainHtml}
+                ${edgesHtml}
+                ${labelsHtml}
                 ${nodesHtml}
             </g>
         </svg>
     `;
 }
-
 
 // ---- INTERACTION: PAN / ZOOM / SELECTION / SEARCH / KEYBOARD ----
 //
@@ -2493,7 +2571,10 @@ function initDagPanZoom(container, graphData, layout) {
     // Set once the user pans or zooms. Until then a resize refits the
     // whole graph; after that a resize keeps the current view centred.
     let userMoved = false;
-    let selectedId = null;
+    // A fold or direction change re-renders; keep the selection if its node
+    // is still in the view.
+    let selectedId = container._dagKeepSelect || null;
+    container._dagKeepSelect = null;
     let animFrame = 0;
     let resizeFrame = 0;
     let lastSize = { w: 0, h: 0 };
@@ -2507,6 +2588,10 @@ function initDagPanZoom(container, graphData, layout) {
 
     function applyTransform() {
         viewport.setAttribute('transform', `translate(${panX},${panY}) scale(${scale})`);
+        // Level of detail: labels are only drawn when zoomed in enough to
+        // read them (CSS keys off this attribute, so no re-render on zoom).
+        const band = scale >= 1 ? 'high' : (scale >= 0.6 ? 'mid' : 'low');
+        if (container.dataset.zoomBand !== band) container.dataset.zoomBand = band;
     }
 
     function stopAnimation() {
@@ -2637,6 +2722,11 @@ function initDagPanZoom(container, graphData, layout) {
     }
 
     function tapTarget(target) {
+        const fold = target && target.closest ? target.closest('[data-collapse-toggle]') : null;
+        if (fold) {
+            dagToggleCollapse(fold.dataset.collapseToggle);
+            return;
+        }
         const el = target && target.closest ? target.closest('[data-node-id]') : null;
         if (!el) {
             clearSelection();
@@ -2844,6 +2934,13 @@ function initDagPanZoom(container, graphData, layout) {
                 userMoved = false;
                 fitAll(true);
                 break;
+            case 'c':
+            case 'C': {
+                const n = id && nodeById.get(id);
+                if (!n || !(n.collapsible || n.collapsed)) { handled = false; break; }
+                dagToggleCollapse(id);
+                break;
+            }
             default:
                 handled = false;
         }
@@ -2881,6 +2978,7 @@ function initDagPanZoom(container, graphData, layout) {
         fitAll(true);
     };
     container._dagClear = () => clearSelection();
+    container._dagGetSelection = () => selectedId;
     container._dagSearch = (query, commit) => {
         const q = String(query || '').trim().toLowerCase();
         const countEl = document.getElementById('dagSearchCount');
@@ -2981,6 +3079,40 @@ function dagClearSelection() {
     if (c && c._dagClear) c._dagClear();
 }
 
+// Folds or unfolds a node's upstream steps and redraws, keeping the
+// current selection when its node is still visible.
+function dagToggleCollapse(id) {
+    const c = document.getElementById('machineGraph');
+    if (!c || !lastGraphData || !id) return;
+    if (dagCollapsed.has(id)) dagCollapsed.delete(id);
+    else dagCollapsed.add(id);
+    c._dagKeepSelect = c._dagGetSelection ? c._dagGetSelection() : null;
+    const isAdvanced = document.getElementById('advancedToggle')?.checked || false;
+    renderGraphDAG(c, lastGraphData, isAdvanced);
+}
+
+function dagToggleDirection() {
+    dagDirection = dagDirection === 'RIGHT' ? 'DOWN' : 'RIGHT';
+    try { localStorage.setItem('dagDirection', dagDirection); } catch (err) { /* private mode: keep in memory */ }
+    updateDagDirectionButton();
+    writeStateToHash();
+    const c = document.getElementById('machineGraph');
+    if (!c || !lastGraphData) return;
+    c._dagKeepSelect = c._dagGetSelection ? c._dagGetSelection() : null;
+    const isAdvanced = document.getElementById('advancedToggle')?.checked || false;
+    renderGraphDAG(c, lastGraphData, isAdvanced);
+}
+
+function updateDagDirectionButton() {
+    const btn = document.getElementById('dagDirBtn');
+    if (!btn) return;
+    btn.textContent = dagDirection === 'DOWN' ? '⇅ Top-down' : '⇄ Left-to-right';
+    btn.setAttribute('aria-label', dagDirection === 'DOWN'
+        ? 'Layout: top to bottom. Switch to left to right.'
+        : 'Layout: left to right. Switch to top to bottom.');
+}
+updateDagDirectionButton();
+
 function dagSearchInput(value) {
     const c = document.getElementById('machineGraph');
     if (c && c._dagSearch) c._dagSearch(value, false);
@@ -2989,6 +3121,183 @@ function dagSearchInput(value) {
 function dagSearchSubmit(value) {
     const c = document.getElementById('machineGraph');
     if (c && c._dagSearch) c._dagSearch(value, true);
+}
+
+// ---- SHARE / EXPORT ------------------------------------------------------
+//
+// The hash carries the run inputs and view settings, so a link reopens the
+// same plan. Recipes are not in the link: they live in this browser.
+
+function writeStateToHash() {
+    if (!lastGraphData) return;
+    const params = new URLSearchParams();
+    params.set('t', lastGraphData.target);
+    const qty = document.getElementById('targetQty')?.value;
+    const time = document.getElementById('targetTime')?.value;
+    const bank = document.getElementById('currentBank')?.value;
+    if (qty) params.set('q', qty);
+    if (time) params.set('s', time);
+    if (bank) params.set('b', bank);
+    if (document.getElementById('advancedToggle')?.checked) params.set('adv', '1');
+    params.set('dir', dagDirection);
+    params.set('view', activeDagView);
+    try {
+        history.replaceState(null, '', '#' + params.toString());
+    } catch (err) { /* some embedded contexts forbid it: the page still works */ }
+}
+
+function restoreStateFromHash() {
+    const raw = location.hash.replace(/^#/, '');
+    if (!raw) return;
+    const params = new URLSearchParams(raw);
+    const target = params.get('t');
+    if (!target) return;
+
+    const set = (id, value) => {
+        const el = document.getElementById(id);
+        if (el && value !== null) el.value = value;
+    };
+    set('targetItem', target);
+    set('targetQty', params.get('q'));
+    set('targetTime', params.get('s'));
+    set('currentBank', params.get('b'));
+    const adv = document.getElementById('advancedToggle');
+    if (adv) adv.checked = params.get('adv') === '1';
+    if (params.get('dir') === 'DOWN' || params.get('dir') === 'RIGHT') {
+        dagDirection = params.get('dir');
+        try { localStorage.setItem('dagDirection', dagDirection); } catch (err) { /* keep in memory */ }
+        updateDagDirectionButton();
+    }
+
+    // Only run when there is a recipe library to run against.
+    if (recipes.length === 0) return;
+    calculateAll(true);
+    if (params.get('view') === 'graphic') setDagView('graphic');
+}
+
+// Colour and layout rules the graph needs, copied into an exported SVG so it
+// looks the same outside the page.
+const DAG_EXPORT_VARS = [
+    '--dag-bg', '--dag-grid', '--dag-node-fill', '--dag-leaf-fill', '--dag-raw',
+    '--dag-edge', '--dag-recycle', '--dag-label-bg', '--dag-out', '--dag-in',
+    '--dag-dim-text', '--dag-dim-opacity', '--text', '--accent', '--grey',
+    '--danger', '--success', '--card-dark'
+];
+
+// Replaces the page's colour variables with their values, so the text works
+// outside the page. Element-level variables (--item-color) are left alone:
+// each element sets them in its own style attribute.
+function dagResolveVars(text, canvas) {
+    const cs = getComputedStyle(canvas);
+    let out = text;
+    DAG_EXPORT_VARS.forEach(name => {
+        const value = cs.getPropertyValue(name).trim();
+        if (value) out = out.split(`var(${name})`).join(value);
+    });
+    return out;
+}
+
+function dagExportCss(canvas) {
+    const resolve = text => dagResolveVars(text, canvas);
+    let css = '';
+    Array.from(document.styleSheets).forEach(sheet => {
+        let rules;
+        try { rules = sheet.cssRules; } catch (err) { return; }
+        Array.from(rules).forEach(rule => {
+            if (!rule.selectorText) return;
+            if (!/dag-|is-lineage|is-selected|sr-only/.test(rule.selectorText)) return;
+            css += resolve(rule.cssText) + '\n';
+        });
+    });
+    return css;
+}
+
+// The whole graph as an SVG string, independent of the current pan and zoom
+// and selection. Returns null if no graph is on screen.
+function dagExportSvgString() {
+    const canvas = document.getElementById('machineGraph');
+    const svg = canvas && canvas.querySelector('#dagSvg');
+    const model = canvas && canvas._dagModel;
+    if (!svg || !model) return null;
+
+    const W = Math.ceil(model.layout.width);
+    const H = Math.ceil(model.layout.height);
+    const clone = svg.cloneNode(true);
+    ['style', 'tabindex', 'role', 'aria-label'].forEach(a => clone.removeAttribute(a));
+    clone.classList.remove('dag-svg', 'dag-dim');
+    clone.setAttribute('width', W);
+    clone.setAttribute('height', H);
+    clone.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+    const viewport = clone.querySelector('#dagViewport');
+    if (viewport) viewport.removeAttribute('transform');
+    clone.querySelectorAll('.is-lineage, .is-selected').forEach(el => el.classList.remove('is-lineage', 'is-selected'));
+    clone.querySelectorAll('[tabindex]').forEach(el => el.removeAttribute('tabindex'));
+
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', W);
+    bg.setAttribute('height', H);
+    bg.setAttribute('fill', getComputedStyle(canvas).getPropertyValue('--dag-bg').trim() || '#0a0a0a');
+    clone.insertBefore(bg, clone.firstChild);
+
+    const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    style.textContent = dagExportCss(canvas);
+    clone.insertBefore(style, clone.firstChild);
+
+    return dagResolveVars(new XMLSerializer().serializeToString(clone), canvas);
+}
+
+function dagExportName(ext) {
+    const target = (lastGraphData && lastGraphData.target) || 'graph';
+    const date = new Date().toISOString().slice(0, 10);
+    return `industrialist-${target}-${date}.${ext}`;
+}
+
+function dagDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function dagExportSvg() {
+    const svg = dagExportSvgString();
+    if (!svg) return;
+    dagDownload(new Blob([svg], { type: 'image/svg+xml' }), dagExportName('svg'));
+}
+
+function dagExportPng() {
+    const svg = dagExportSvgString();
+    const model = document.getElementById('machineGraph')?._dagModel;
+    if (!svg || !model) return;
+    const W = Math.ceil(model.layout.width);
+    const H = Math.ceil(model.layout.height);
+    const SCALE = 2;
+
+    const img = new Image();
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = W * SCALE;
+        canvas.height = H * SCALE;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(SCALE, SCALE);
+        ctx.drawImage(img, 0, 0, W, H);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(blob => {
+            if (blob) dagDownload(blob, dagExportName('png'));
+        }, 'image/png');
+    };
+    img.onerror = () => {
+        URL.revokeObjectURL(url);
+        alert('Could not render the graph to PNG. Try the SVG export instead.');
+    };
+    img.src = url;
 }
 
 function escapeHtml(str) {
