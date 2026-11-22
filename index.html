@@ -153,6 +153,19 @@
                 <span class="dag-zoom-hint">Drag or pinch to pan and zoom · Click a machine to trace its lineage</span>
             </div>
 
+            <details class="dag-legend">
+                <summary>Legend</summary>
+                <ul>
+                    <li><span class="dag-legend-swatch"></span> Machine: count × name, with outputs (OUT) and inputs (IN)</li>
+                    <li><span class="dag-legend-mono">AB</span> Machine badge (initials; same colour every run)</li>
+                    <li><span class="dag-legend-swatch dag-legend-swatch--raw"></span> Raw input, not made in this plan</li>
+                    <li><span class="dag-legend-swatch dag-legend-swatch--shared"></span> Shared: item feeds several consumers (its colour)</li>
+                    <li><span class="dag-legend-line dag-legend-line--recycle"></span> ♻ Byproduct recycled back into the plan</li>
+                    <li><span class="dag-legend-swatch dag-legend-swatch--cycle"></span> Cycle: loops back to an item already being made</li>
+                    <li><span class="dag-legend-line"></span> Line thickness = flow rate (thicker is more)</li>
+                </ul>
+            </details>
+
             <aside id="dagDetail" class="dag-detail" aria-label="Selected machine details" hidden></aside>
             <div id="dagLive" class="sr-only" aria-live="polite"></div>
 

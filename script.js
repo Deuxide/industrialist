@@ -2291,15 +2291,38 @@ function buildDagMarkerDefs(graphData) {
     return `<defs>${defs}</defs>`;
 }
 
-function dagEdgeTemplate(edge, index, points, isAdvanced) {
+// Edge colour: a byproduct's colour for recycle edges, the item's colour
+// for shared edges, otherwise the theme default.
+function dagEdgeColor(edge) {
+    if (edge.isRecycleEdge) return edge.sharedColor || DAG_RECYCLE_DEFAULT;
+    if (edge.isSharedEdge && edge.sharedColor) return edge.sharedColor;
+    return null;
+}
+
+// Line width scales with flow (log scale, so one huge flow does not
+// swamp the rest): 1.5px for the smallest flow up to 4.5px for the largest.
+function dagEdgeWidth(rate, maxRate) {
+    const r = Number(rate) || 0;
+    if (!maxRate || maxRate <= 0) return 2;
+    const t = Math.min(1, Math.max(0, Math.log(1 + r) / Math.log(1 + maxRate)));
+    return +(1.5 + 3 * t).toFixed(2);
+}
+
+// Label text: the item's name; with Advanced View, the rate as well.
+function dagEdgeLabelText(edge, isAdvanced) {
+    const name = DagLayout.prettyName(edge.itemName);
+    const prefix = edge.isRecycleEdge ? '♻ ' : '';
+    if (!isAdvanced) return `${prefix}${name}`;
+    return `${prefix}${(Number(edge.rate) || 0).toFixed(2)}/s ${name}`;
+}
+
+function dagEdgeTemplate(edge, index, points, maxRate) {
     const d = DagLayout.roundedPath(points, 8);
-    if (!d) return { recycle: false, html: '' };
+    if (!d) return '';
 
     const isRecycle = !!edge.isRecycleEdge;
     const isShared = !isRecycle && !!edge.isSharedEdge;
-    const color = isRecycle
-        ? (edge.sharedColor || DAG_RECYCLE_DEFAULT)
-        : (isShared ? edge.sharedColor || null : null);
+    const color = dagEdgeColor(edge);
 
     let marker = 'arrowhead-plain';
     if (isRecycle) marker = dagMarkerId('recycle', color);
@@ -2310,40 +2333,27 @@ function dagEdgeTemplate(edge, index, points, isAdvanced) {
     if (isShared) classes.push('dag-edge--shared');
 
     const styleAttr = color ? ` style="--item-color:${svgEsc(color)}"` : '';
-
     const rate = Number(edge.rate) || 0;
-    const tooltip = isRecycle
-        ? (isAdvanced
-            ? `♻ recycled: ${rate.toFixed(2)}/s ${edge.itemName}`
-            : `♻ recycled ${edge.itemName}`)
-        : (isAdvanced
-            ? `${rate.toFixed(2)}/s ${edge.itemName}`
-            : edge.itemName);
+    const tip = `${rate.toFixed(2)}/s ${DagLayout.prettyName(edge.itemName)}`;
+    const tooltip = isRecycle ? `♻ recycled: ${tip}` : tip;
 
-    let html = `
+    return `
         <g class="${classes.join(' ')}" aria-hidden="true" data-edge-id="e${index}" data-from="${svgEsc(edge.from)}" data-to="${svgEsc(edge.to)}" data-item="${svgEsc(edge.itemName)}"${styleAttr}>
-            <path d="${d}" marker-end="url(#${marker})"></path>
+            <path d="${d}" stroke-width="${dagEdgeWidth(rate, maxRate)}" marker-end="url(#${marker})"></path>
             <title>${svgEsc(tooltip)}</title>
         </g>`;
+}
 
-    if (isRecycle) {
-        const labelText = isAdvanced
-            ? `♻ ${edge.itemName} ${rate.toFixed(2)}/s`
-            : `♻ ${edge.itemName}`;
-        const labelW = Math.min(180, 14 + labelText.length * 6.1);
-        const anchor = DagLayout.labelAnchor(points);
-        // Sit the pill just above the longest segment so it neither
-        // covers the line nor the arrowhead.
-        const lx = anchor.x - labelW / 2;
-        const ly = anchor.y - 9 - 14;
-        html += `
-        <g class="dag-edge-label" data-edge-id="e${index}" transform="translate(${lx.toFixed(1)},${ly.toFixed(1)})" pointer-events="none"${styleAttr}>
-            <rect width="${labelW.toFixed(1)}" height="18" rx="9"></rect>
-            <text x="${(labelW / 2).toFixed(1)}" y="13" text-anchor="middle">${svgEsc(fitLabel(labelText, 26))}</text>
+// A placed edge label. `item` carries the position computed by buildDagSvg.
+function dagEdgeLabelHtml(edge, index, item) {
+    const color = dagEdgeColor(edge);
+    const styleAttr = color ? ` style="--item-color:${svgEsc(color)}"` : '';
+    const cls = edge.isRecycleEdge ? 'dag-edge-label dag-edge-label--recycle' : 'dag-edge-label';
+    return `
+        <g class="${cls}" data-edge-id="e${index}" transform="translate(${item.x.toFixed(1)},${item.y.toFixed(1)})" pointer-events="none"${styleAttr}>
+            <rect width="${item.w.toFixed(1)}" height="${item.h}" rx="${item.h / 2}"></rect>
+            <text x="${(item.w / 2).toFixed(1)}" y="13" text-anchor="middle">${svgEsc(item.text)}</text>
         </g>`;
-    }
-
-    return { recycle: isRecycle, html };
 }
 
 function dagNodeTemplate(node, box, isAdvanced) {
@@ -2362,20 +2372,23 @@ function dagNodeTemplate(node, box, isAdvanced) {
     if (glowColor) styleParts.push(`--glow-color:${svgEsc(hexToRgbaShared(glowColor, 0.6))}`);
     const styleAttr = styleParts.length ? ` style="${styleParts.join(';')}"` : '';
 
-    const ariaLabel = node.kind === 'machine'
-        ? `${node.count}x ${node.label}, makes ${node.outputs.map(o => o.itemName).join(', ')}`
-        : `${node.kind} ${node.itemName}`;
+    const itemTitle = node.kind === 'machine'
+        ? `${node.count}x ${node.label}, makes ${node.outputs.map(o => DagLayout.prettyName(o.itemName)).join(', ')}`
+        : `${node.kind} ${DagLayout.prettyName(node.itemName)}`;
 
     const attrs =
         `class="${classes.join(' ')}" data-node-id="${svgEsc(node.id)}" data-kind="${svgEsc(node.kind)}"` +
-        ` tabindex="0" role="button" aria-label="${svgEsc(ariaLabel)}"` +
+        ` tabindex="0" role="button" aria-label="${svgEsc(itemTitle)}"` +
         ` transform="translate(${x.toFixed(1)},${y.toFixed(1)})"${styleAttr}`;
 
     if (node.kind === 'machine') {
         const outStr = isAdvanced
-            ? node.outputs.map(o => `${o.rate.toFixed(2)} ${o.itemName}/s`).join(', ')
-            : node.outputs.map(o => o.itemName).join(', ');
-        const inputStr = node.inputSummary || 'NONE';
+            ? node.outputs.map(o => `${(Number(o.rate) || 0).toFixed(2)} ${DagLayout.prettyName(o.itemName)}/s`).join(', ')
+            : node.outputs.map(o => DagLayout.prettyName(o.itemName)).join(', ');
+        const inputStr = node.inputSummary
+            ? node.inputSummary.split(', ').map(n => DagLayout.prettyName(n)).join(', ')
+            : 'NONE';
+        const mono = DagLayout.monogramFor(node.label);
 
         return `
         <g ${attrs}>
@@ -2384,8 +2397,12 @@ function dagNodeTemplate(node, box, isAdvanced) {
             <text class="dag-t-out" x="10" y="38">OUT: ${svgEsc(fitLabel(outStr, 26))}</text>
             <text class="dag-t-in" x="10" y="54">IN: ${svgEsc(fitLabel(inputStr, 30))}</text>
             ${node.isShared ? `<text class="dag-t-badge" x="${w - 10}" y="16" text-anchor="end">⑂ shared</text>` : ''}
-            <title>${svgEsc(node.label)} — exact ${node.exactCount.toFixed(4)}x needed
-Outputs: ${svgEsc(node.outputs.map(o => o.itemName + ' (' + o.rate.toFixed(3) + '/s)').join(', '))}
+            <g class="dag-monogram" pointer-events="none">
+                <circle cx="${w - 18}" cy="${h - 18}" r="10" fill="${mono.color}"></circle>
+                <text x="${w - 18}" y="${h - 14.5}" text-anchor="middle">${svgEsc(mono.text)}</text>
+            </g>
+            <title>${svgEsc(node.label)} — exact ${Number(node.exactCount).toFixed(4)}x needed
+Outputs: ${svgEsc(node.outputs.map(o => o.itemName + ' (' + (Number(o.rate) || 0).toFixed(3) + '/s)').join(', '))}
 Inputs: ${svgEsc(inputStr)}</title>
         </g>`;
     }
@@ -2399,28 +2416,56 @@ Inputs: ${svgEsc(inputStr)}</title>
     } else if (node.kind === 'cycle') {
         prefix = '[CYCLE] ';
     }
-    const rateStr = isAdvanced ? ` (${Number(node.rate).toFixed(2)}/s)` : '';
+    const rateStr = isAdvanced ? ` (${(Number(node.rate) || 0).toFixed(2)}/s)` : '';
 
     return `
         <g ${attrs}>
             <rect width="${w}" height="${h}" rx="6"></rect>
-            <text class="dag-t-leaf" x="10" y="18">${prefix}${svgEsc(fitLabel(node.itemName, 24))}</text>
+            <text class="dag-t-leaf" x="10" y="18">${prefix}${svgEsc(fitLabel(DagLayout.prettyName(node.itemName), 24))}</text>
             ${extra ? `<text class="dag-t-extra" x="10" y="34">${svgEsc(fitLabel(extra, 30))}</text>` : ''}
             <title>${svgEsc(node.itemName)}${svgEsc(rateStr)}${extra ? ' — ' + svgEsc(extra) : ''}</title>
         </g>`;
 }
 
 function buildDagSvg(graphData, layout, isAdvanced) {
-    // Recycle edges are drawn first so ordinary edges layer on top and
-    // stay easy to trace.
-    let recycleHtml = '';
-    let plainHtml = '';
+    const maxRate = graphData.edges.reduce((m, e) => Math.max(m, Number(e.rate) || 0), 0);
+
+    // Edges that have a route, in graph order.
+    const routed = [];
     graphData.edges.forEach((edge, i) => {
         const points = layout.edges.get(`e${i}`);
-        if (!points || points.length < 2) return;
-        const out = dagEdgeTemplate(edge, i, points, isAdvanced);
-        if (out.recycle) recycleHtml += out.html;
-        else plainHtml += out.html;
+        if (points && points.length >= 2) routed.push({ edge, i, points });
+    });
+
+    // Labels: every edge gets one, but placed greedily so none sits on a
+    // node or on another label. Recycle edges win ties, then shared, then
+    // larger flows.
+    const obstacles = [...layout.nodes.values()].map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h }));
+    const labelItems = routed.map(({ edge, i, points }, order) => {
+        const text = fitLabel(dagEdgeLabelText(edge, isAdvanced), 28);
+        const w = Math.min(200, 14 + text.length * 6.1);
+        const a = DagLayout.labelAnchor(points);
+        const rateN = maxRate > 0 ? (Number(edge.rate) || 0) / maxRate : 0;
+        const kind = edge.isRecycleEdge ? 3 : (edge.isSharedEdge ? 2 : 1);
+        return {
+            id: i, order, priority: kind + rateN * 0.5,
+            x: a.x - w / 2, y: a.y - 23, w, h: 18, text
+        };
+    });
+    const accepted = DagLayout.placeLabels(labelItems, obstacles);
+
+    let edgesHtml = '';
+    let recycleHtml = '';
+    routed.forEach(({ edge, i, points }) => {
+        const html = dagEdgeTemplate(edge, i, points, maxRate);
+        if (edge.isRecycleEdge) recycleHtml += html;
+        else edgesHtml += html;
+    });
+
+    let labelsHtml = '';
+    labelItems.forEach(item => {
+        if (!accepted.has(item.id)) return;
+        labelsHtml += dagEdgeLabelHtml(graphData.edges[item.id], item.id, item);
     });
 
     let nodesHtml = '';
@@ -2435,13 +2480,13 @@ function buildDagSvg(graphData, layout, isAdvanced) {
             ${buildDagMarkerDefs(graphData)}
             <g id="dagViewport">
                 ${recycleHtml}
-                ${plainHtml}
+                ${edgesHtml}
+                ${labelsHtml}
                 ${nodesHtml}
             </g>
         </svg>
     `;
 }
-
 
 // ---- INTERACTION: PAN / ZOOM / SELECTION / SEARCH / KEYBOARD ----
 //
@@ -2507,6 +2552,10 @@ function initDagPanZoom(container, graphData, layout) {
 
     function applyTransform() {
         viewport.setAttribute('transform', `translate(${panX},${panY}) scale(${scale})`);
+        // Level of detail: labels are only drawn when zoomed in enough to
+        // read them (CSS keys off this attribute, so no re-render on zoom).
+        const band = scale >= 1 ? 'high' : (scale >= 0.6 ? 'mid' : 'low');
+        if (container.dataset.zoomBand !== band) container.dataset.zoomBand = band;
     }
 
     function stopAnimation() {

@@ -648,14 +648,12 @@ button:hover {
 .dag-edge path {
     fill: none;
     stroke: var(--dag-edge);
-    stroke-width: 2;
     opacity: 0.85;
 }
 
 /* An item with several consumers: coloured, slightly heavier. */
 .dag-edge--shared path {
     stroke: var(--item-color, var(--dag-edge));
-    stroke-width: 2.8;
 }
 
 /* Recycle (byproduct-feeds-backward) edges — dashed, with their own
@@ -664,7 +662,6 @@ button:hover {
    glance rather than just another flow line. */
 .dag-edge--recycle path {
     stroke: var(--item-color, var(--dag-recycle));
-    stroke-width: 2.2;
     stroke-dasharray: 7 5;
     opacity: 0.9;
     transition: opacity 0.15s;
@@ -677,15 +674,93 @@ button:hover {
 
 .dag-edge-label rect {
     fill: var(--dag-label-bg);
-    stroke: var(--item-color, var(--dag-recycle));
+    stroke: var(--item-color, var(--dag-edge));
     stroke-width: 1;
     opacity: 0.92;
 }
 
 .dag-edge-label text {
-    fill: var(--item-color, var(--dag-recycle));
+    fill: var(--item-color, var(--dag-edge));
+    font-family: monospace;
     font-size: 10px;
     font-weight: bold;
+}
+
+/* Level of detail: labels only when zoomed in enough to read them. A
+   selected lineage keeps its labels at any zoom. */
+[data-zoom-band="mid"] .dag-edge-label:not(.is-lineage),
+[data-zoom-band="low"] .dag-edge-label:not(.is-lineage) {
+    display: none;
+}
+
+/* Machine badge in the bottom-right corner. */
+.dag-monogram circle {
+    opacity: 0.9;
+}
+
+.dag-monogram text {
+    fill: #101010;
+    font-family: monospace;
+    font-size: 9px;
+    font-weight: bold;
+}
+
+/* ---- Legend ----------------------------------------------------------- */
+.dag-legend {
+    margin-top: 10px;
+    font-size: 0.8em;
+    opacity: 0.9;
+}
+
+.dag-legend summary {
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+.dag-legend ul {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 6px 16px;
+}
+
+.dag-legend li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dag-legend-swatch {
+    flex: 0 0 34px;
+    height: 16px;
+    border: 1.5px solid var(--grey);
+    background: var(--dag-node-fill);
+    border-radius: 4px;
+}
+
+.dag-legend-swatch--raw { border-color: var(--dag-raw); border-style: dashed; }
+.dag-legend-swatch--cycle { border-color: var(--danger); border-style: dashed; }
+.dag-legend-swatch--shared { border-color: var(--dag-in); border-width: 2.4px; }
+.dag-legend-line {
+    flex: 0 0 34px;
+    height: 0;
+    border-top: 2px solid var(--dag-edge);
+}
+.dag-legend-line--recycle { border-top-style: dashed; border-top-color: var(--dag-recycle); }
+.dag-legend-mono {
+    flex: 0 0 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #6aa84f;
+    color: #101010;
+    font-family: monospace;
+    font-weight: bold;
+    font-size: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* ---- Layout status / fallback message ---------------------------- */
