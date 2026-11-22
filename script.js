@@ -17,7 +17,14 @@ window.onload = () => {
     }
 
     displayRecipes();
-    restoreStateFromHash();
+    // A shared link (#t=...) wins; otherwise the last settings are restored.
+    if (!restoreStateFromHash()) restoreSettings();
+    ['targetItem', 'targetQty', 'targetTime', 'currentBank'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', saveSettings);
+    });
+    const adv = document.getElementById('advancedToggle');
+    if (adv) adv.addEventListener('change', saveSettings);
 };
 
 
@@ -506,6 +513,7 @@ function setDagView(view) {
     activeDagView = view;
     updateDagViewVisibility();
     writeStateToHash();
+    saveSettings();
 
     // Lazily render the graphic view the first time it's switched to,
     // using whatever data is currently cached from the last run.
@@ -3202,6 +3210,7 @@ function dagToggleDirection() {
     try { localStorage.setItem('dagDirection', dagDirection); } catch (err) { /* private mode: keep in memory */ }
     updateDagDirectionButton();
     writeStateToHash();
+    saveSettings();
     const c = document.getElementById('machineGraph');
     if (!c || !lastGraphData) return;
     c._dagKeepSelect = c._dagGetSelection ? c._dagGetSelection() : null;
@@ -3252,12 +3261,13 @@ function writeStateToHash() {
     } catch (err) { /* some embedded contexts forbid it: the page still works */ }
 }
 
+// Returns true when the URL carried a target (and so took over the page).
 function restoreStateFromHash() {
     const raw = location.hash.replace(/^#/, '');
-    if (!raw) return;
+    if (!raw) return false;
     const params = new URLSearchParams(raw);
     const target = params.get('t');
-    if (!target) return;
+    if (!target) return false;
 
     const set = (id, value) => {
         const el = document.getElementById(id);
@@ -3276,9 +3286,57 @@ function restoreStateFromHash() {
     }
 
     // Only run when there is a recipe library to run against.
-    if (recipes.length === 0) return;
+    if (recipes.length === 0) return true;
     calculateAll(true);
     if (params.get('view') === 'graphic') setDagView('graphic');
+    return true;
+}
+
+// ---- Settings persistence (per browser) ----
+// The target and settings are kept under their own key, separate from the
+// recipe library. Restored fields only: the simulation is not run on load.
+const SETTINGS_KEY = 'industrialist.settings';
+
+function saveSettings() {
+    const val = id => document.getElementById(id)?.value ?? '';
+    const settings = {
+        item: val('targetItem'),
+        qty: val('targetQty'),
+        time: val('targetTime'),
+        bank: val('currentBank'),
+        advanced: !!document.getElementById('advancedToggle')?.checked,
+        view: activeDagView,
+        dir: dagDirection
+    };
+    try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    } catch (err) { /* private mode or full storage: settings just aren't kept */ }
+}
+
+function restoreSettings() {
+    let s = null;
+    try {
+        s = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+    } catch (err) { return; }
+    if (!s || typeof s !== 'object') return;
+
+    const setText = (id, v) => {
+        const el = document.getElementById(id);
+        if (el && typeof v === 'string') el.value = v;
+    };
+    setText('targetItem', s.item);
+    setText('targetQty', s.qty);
+    setText('targetTime', s.time);
+    setText('currentBank', s.bank);
+
+    const adv = document.getElementById('advancedToggle');
+    if (adv) adv.checked = s.advanced === true;
+
+    if (s.dir === 'DOWN' || s.dir === 'RIGHT') {
+        dagDirection = s.dir;
+        updateDagDirectionButton();
+    }
+    if (s.view === 'graphic' || s.view === 'text') setDagView(s.view);
 }
 
 // Colour and layout rules the graph needs, copied into an exported SVG so it
