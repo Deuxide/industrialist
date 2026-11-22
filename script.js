@@ -17,7 +17,14 @@ window.onload = () => {
     }
 
     displayRecipes();
-    restoreStateFromHash();
+    // A shared link (#t=...) wins; otherwise the last settings are restored.
+    if (!restoreStateFromHash()) restoreSettings();
+    ['targetItem', 'targetQty', 'targetTime', 'currentBank'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', saveSettings);
+    });
+    const adv = document.getElementById('advancedToggle');
+    if (adv) adv.addEventListener('change', saveSettings);
 };
 
 
@@ -44,6 +51,61 @@ function exportData() {
     URL.revokeObjectURL(url);
 }
 
+// ---- Inline messages (replaces alert()) ----
+// One banner, always in the DOM (see index.html). Text is set with
+// textContent, so messages can carry user-supplied names safely.
+let _bannerTimer = null;
+
+function showBanner(message, kind = 'error') {
+    const el = document.getElementById('appBanner');
+    if (!el) {
+        console.error(message);
+        return;
+    }
+    const text = el.querySelector('.app-banner-text');
+    if (text) text.textContent = message;
+    el.className = `app-banner app-banner--${kind}`;
+    el.hidden = false;
+    clearTimeout(_bannerTimer);
+    if (kind === 'info') _bannerTimer = setTimeout(hideBanner, 5000);
+}
+
+function hideBanner() {
+    const el = document.getElementById('appBanner');
+    if (el) el.hidden = true;
+}
+
+// Log the detail, show a short sentence to the person.
+function reportError(prefix, err) {
+    console.error(err);
+    const detail = err && err.message ? err.message : String(err);
+    showBanner(`${prefix}: ${detail}`);
+}
+
+// Checks that an imported library has the shape the solver relies on.
+// Returns null when it is fine, otherwise a sentence describing the first
+// problem found.
+function validateImportedRecipes(list) {
+    if (!Array.isArray(list)) return 'the file has no recipe list.';
+    if (list.length === 0) return 'the file contains no recipes.';
+
+    const isRateMap = obj =>
+        obj && typeof obj === 'object' && !Array.isArray(obj) &&
+        Object.values(obj).every(v => typeof v === 'number' && Number.isFinite(v) && v >= 0);
+
+    for (let i = 0; i < list.length; i++) {
+        const r = list[i];
+        const where = `recipe ${i + 1}`;
+        if (!r || typeof r !== 'object') return `${where} is not an object.`;
+        if (typeof r.name !== 'string' || !r.name.trim()) return `${where} has no machine name.`;
+        const label = `"${r.name}"`;
+        if (r.id === undefined || r.id === null || r.id === '') return `${label} has no id.`;
+        if (!isRateMap(r.inputs)) return `${label} has invalid inputs.`;
+        if (!isRateMap(r.outputs)) return `${label} has invalid outputs.`;
+    }
+    return null;
+}
+
 function importData() {
     const input = document.createElement('input');
 
@@ -56,30 +118,50 @@ function importData() {
 
         const reader = new FileReader();
 
+        reader.onerror = () => showBanner('Could not read that file.');
+
         reader.onload = event => {
+            let imported;
             try {
-                const imported = JSON.parse(event.target.result);
-                const converted = convertImportedData(imported);
-
-                if (converted === null) {
-                    alert(
-                        "Error importing file: unrecognized recipe format.\n\n" +
-                        "Expected either this app's native { recipes: [...] } " +
-                        "export, or a flat list of single-output recipe entries."
-                    );
-                    return;
-                }
-
-                recipes = converted;
-
-                saveData();
-                displayRecipes();
-
-                alert(`Import Successful! Loaded ${recipes.length} recipe(s).`);
-
+                imported = JSON.parse(event.target.result);
             } catch (err) {
                 console.error(err);
-                alert("Error importing file: Invalid JSON format.");
+                showBanner('Import cancelled: the file is not valid JSON.');
+                return;
+            }
+
+            const converted = convertImportedData(imported);
+            if (converted === null) {
+                showBanner(
+                    "Import cancelled: unrecognised recipe format. Expected this app's " +
+                    "{ recipes: [...] } export, or a flat list of recipe entries."
+                );
+                return;
+            }
+
+            const problem = validateImportedRecipes(converted);
+            if (problem) {
+                showBanner(`Import cancelled: ${problem} Your recipes were not changed.`);
+                return;
+            }
+
+            // Importing replaces the whole library, so confirm before
+            // discarding one that already exists.
+            if (recipes.length > 0 && !confirm(
+                `Replace your ${recipes.length} saved recipe(s) with ${converted.length} from this file?\n\n` +
+                'Export first if you want to keep the current library.')) {
+                return;
+            }
+
+            recipes = converted;
+            displayRecipes();
+
+            try {
+                saveData();
+                showBanner(`Import successful: loaded ${recipes.length} recipe(s).`, 'info');
+            } catch (err) {
+                console.error(err);
+                showBanner('Recipes loaded for this session, but could not be saved in this browser (storage full?).');
             }
         };
 
@@ -316,7 +398,10 @@ function addRecipe() {
     const name = document.getElementById('mName').value.trim();
     const time = parseFloat(document.getElementById('mTime').value);
 
-    if (!name || !time) return alert("Machine Name and Time are required!");
+    if (!name || !time) {
+        showBanner("Machine Name and Time are required.");
+        return;
+    }
 
     // Same rule as the import converter: a non-positive time (most
     // notably -1, used by some recipes for a variable/steam-
@@ -405,7 +490,7 @@ function parseItems(str, time) {
         const parts = p.trim().split(' ');
         const qty = parseFloat(parts[0]);
         const item = parts.slice(1).join(' ').toLowerCase().trim();
-        if (item) {
+        if (item && Number.isFinite(qty)) {
             obj[item] = (obj[item] || 0) + (qty / time);
         }
     });
@@ -428,6 +513,7 @@ function setDagView(view) {
     activeDagView = view;
     updateDagViewVisibility();
     writeStateToHash();
+    saveSettings();
 
     // Lazily render the graphic view the first time it's switched to,
     // using whatever data is currently cached from the last run.
@@ -437,7 +523,7 @@ function setDagView(view) {
         const graphContainer = document.getElementById('machineGraph');
         const isAdvanced = document.getElementById('advancedToggle')?.checked || false;
         if (graphContainer && !graphContainer.hasChildNodes()) {
-            renderGraphDAG(graphContainer, lastGraphData, isAdvanced);
+            renderGraphDAGSafe(graphContainer, lastGraphData, isAdvanced);
         }
     }
 }
@@ -496,7 +582,6 @@ function calculateAll(rerollColors = false) {
     // redraws the same DAG and should not change its color mapping.
     if (rerollColors) {
         dagCollapsed = new Set();
-        currentColorSeed = Math.floor(Math.random() * 2147483647);
         sharedColorAssignments.clear();
         usedSharedColors.clear();
     }
@@ -518,11 +603,17 @@ function calculateAll(rerollColors = false) {
     );
 
     if (!target || isNaN(qty) || isNaN(time) || time <= 0) {
-        alert("Enter a Target Item, Quantity, and Time.");
+        showBanner("Enter a Target Item, Quantity, and Time.");
         return;
     }
 
-    const data = runLogic(target, qty, time);
+    let data;
+    try {
+        data = runLogic(target, qty, time);
+    } catch (err) {
+        reportError("The simulation failed", err);
+        return;
+    }
 
     activeRecipeIds = new Set(
         Object.values(data.treeData)
@@ -567,12 +658,17 @@ function calculateAll(rerollColors = false) {
     // Build once per simulation run (cheap relative to layout) and
     // store so switching tabs or toggling Advanced View doesn't need
     // to re-run the solver — just re-layout/re-render from cached data.
-    lastGraphData = buildGraphDataRoot(data, target);
+    try {
+        lastGraphData = buildGraphDataRoot(data, target);
+    } catch (err) {
+        lastGraphData = null;
+        reportError("The production graph could not be built", err);
+    }
 
     if (graphContainer) {
         const isAdvanced = document.getElementById('advancedToggle')?.checked || false;
         if (activeDagView === 'graphic') {
-            renderGraphDAG(graphContainer, lastGraphData, isAdvanced);
+            renderGraphDAGSafe(graphContainer, lastGraphData, isAdvanced);
         }
     }
 
@@ -1230,9 +1326,10 @@ const SHARED_ITEM_PALETTE = [
 const sharedColorAssignments = new Map();
 const usedSharedColors = new Set();
 
-// Current render's color seed. Re-rolled once per fresh calculation
-// (see calculateAll) — NOT per node, NOT per page load.
-let currentColorSeed = Math.floor(Math.random() * 2147483647);
+// Seed for the colour hash. Fixed, so the same item gets the same colour
+// on every run and in every session; collisions are resolved by the order
+// items are first seen in a run (which is itself deterministic).
+let currentColorSeed = 0;
 
 function getSharedItemColor(itemName, seed = currentColorSeed) {
     if (sharedColorAssignments.has(itemName)) {
@@ -1296,6 +1393,35 @@ function getSharedItemColor(itemName, seed = currentColorSeed) {
     return selectedColor;
 }
 
+
+// ---- Byproduct (recycle) helpers ----
+// Shared by the text tree (renderNode) and the graph model (buildGraphData),
+// so both draw the same recycle decisions.
+
+// Splits an item's demand between byproducts already in the plan and
+// external input.
+//   supplied    amount a byproduct provides
+//   recycledPart share of the demand covered by that byproduct
+//   rawPart     share still needing external input
+function recycleSplit(itemName, requiredRate, byproductSupplied, byproductSource) {
+    const supplied = byproductSupplied[itemName] || 0;
+    return {
+        source: byproductSource[itemName],
+        supplied,
+        recycledPart: Math.min(supplied, requiredRate),
+        rawPart: Math.max(0, requiredRate - supplied)
+    };
+}
+
+// The item this machine's recipe yields as a byproduct that is in the plan,
+// or null. Prefers any matching byproduct, then the item being made.
+function recycledSourceItemFor(recipeId, itemName, byproductSource) {
+    return Object.keys(byproductSource).find(
+        sourceItem => byproductSource[sourceItem] && byproductSource[sourceItem].recipeId === recipeId
+    ) || (itemName && byproductSource[itemName] && byproductSource[itemName].recipeId === recipeId
+        ? itemName
+        : null);
+}
 
 function renderNode(
     treeData,
@@ -1402,9 +1528,8 @@ function renderNode(
 
     if (!treeData[itemName]) {
 
-        const recycledAmount = byproductSupplied[itemName] || 0;
-        const source = byproductSource[itemName];
-        const trulyRawAmount = Math.max(0, requiredRate - recycledAmount);
+        const { source, supplied: recycledAmount, rawPart: trulyRawAmount } =
+            recycleSplit(itemName, requiredRate, byproductSupplied, byproductSource);
 
         const EPS = 1e-6;
 
@@ -1412,7 +1537,7 @@ function renderNode(
         if (source && recycledAmount >= requiredRate - EPS) {
 
             const recycledColor = getSharedItemColor(itemName);
-            const anchorId = `node-recipe-${source.recipeId}`;
+            const anchorId = `node-recipe-${escapeHtml(source.recipeId)}`;
 
             const rateStr = isAdvanced
                 ? ` (${recycledAmount.toFixed(3)} ${escapeHtml(itemName)}/s)`
@@ -1444,7 +1569,7 @@ function renderNode(
         if (source && recycledAmount > EPS) {
 
             const recycledColor = getSharedItemColor(itemName);
-            const anchorId = `node-recipe-${source.recipeId}`;
+            const anchorId = `node-recipe-${escapeHtml(source.recipeId)}`;
 
             const rateStr = isAdvanced
                 ? ` (${recycledAmount.toFixed(3)}/s recycled, ${trulyRawAmount.toFixed(3)}/s raw)`
@@ -1484,7 +1609,7 @@ function renderNode(
         const displayVal =
             isAdvanced
                 ? `${requiredRate.toFixed(3)} ${escapeHtml(itemName)}/s`
-                : itemName;
+                : escapeHtml(itemName);
 
         const rawSharedBadge = isShared
             ? `<span style="
@@ -1535,7 +1660,7 @@ function renderNode(
         const displayVal =
             isAdvanced
                 ? `${requiredRate.toFixed(3)} ${escapeHtml(itemName)}/s`
-                : itemName;
+                : escapeHtml(itemName);
 
         return `
             <div style="
@@ -1645,7 +1770,7 @@ function renderNode(
         // (and separately-rounded) machines where there's only one.
         if (renderedRecipes.has(node.recipeId)) {
 
-            const anchorId = `node-recipe-${node.recipeId}`;
+            const anchorId = `node-recipe-${escapeHtml(node.recipeId)}`;
             const pointerColor = getSharedItemColor(itemName);
 
             const rateStr = isAdvanced
@@ -1689,8 +1814,8 @@ function renderNode(
 
             outputStrings.push(
                 isAdvanced
-                    ? `${totalRate.toFixed(3)} ${out}/s`
-                    : out
+                    ? `${totalRate.toFixed(3)} ${escapeHtml(out)}/s`
+                    : escapeHtml(out)
             );
         }
 
@@ -1702,8 +1827,8 @@ function renderNode(
         let inputStrings =
             node.inputs.map(inp =>
                 isAdvanced
-                    ? `${inp.rate.toFixed(3)} ${inp.itemName}/s`
-                    : inp.itemName
+                    ? `${inp.rate.toFixed(3)} ${escapeHtml(inp.itemName)}/s`
+                    : escapeHtml(inp.itemName)
             );
 
 
@@ -1731,15 +1856,7 @@ function renderNode(
         const wholeMachines = Math.ceil(node.count - 1e-9);
         const exactStr = node.count.toFixed(4);
 
-        const recycledSourceItem =
-            Object.keys(byproductSource).find(
-                sourceItem =>
-                    byproductSource[sourceItem] &&
-                    byproductSource[sourceItem].recipeId === node.recipeId
-            ) ||
-            (itemName && byproductSource[itemName] && byproductSource[itemName].recipeId === node.recipeId
-                ? itemName
-                : null);
+        const recycledSourceItem = recycledSourceItemFor(node.recipeId, itemName, byproductSource);
 
         const recycledSourceColor =
             recycledSourceItem
@@ -1766,7 +1883,7 @@ function renderNode(
             : "";
 
         html += `
-            <div id="node-recipe-${node.recipeId}" style="
+            <div id="node-recipe-${escapeHtml(node.recipeId)}" style="
                 font-family: monospace;
                 white-space: nowrap;
                 margin-bottom: 0px;
@@ -1899,14 +2016,15 @@ function renderNode(
 // Node shape:
 //   {
 //     id,                 // unique within this render pass
-//     kind,                // 'machine' | 'raw' | 'recycled' | 'cycle' | 'ref'
+//     kind,                // 'machine' | 'raw' | 'cycle'
+//                          // (a recycled raw leaf is a 'raw' node with
+//                          //  partialRecycle set, or no raw node at all)
 //     label,                // machine or item name
 //     itemName,             // item this node represents/produces
 //     count, exactCount,    // machine count (machine nodes only)
 //     rate,                 // it/s, for advanced-view labels
 //     isShared, sharedColor,
-//     recipeId,
-//     refTargetId           // for 'ref' nodes: id of the node this points to
+//     recipeId
 //   }
 //
 // Edge shape: { from, to, itemName, rate }
@@ -1924,7 +2042,7 @@ function buildGraphData(
     renderedRecipes,
     nodes,
     edges,
-    nodeIdForItem,     // item -> id of its full-expansion node (for 'ref'/back-edges)
+    nodeIdForItem,     // item -> id of its full-expansion node (for cycle back-edges)
     nodeIdForRecipe,   // recipeId -> id of its machine node
     parentNodeId       // id of the node that consumes this item (edge target), or null for root
 ) {
@@ -1940,52 +2058,56 @@ function buildGraphData(
     const sharedColor = isShared ? getSharedItemColor(itemName) : null;
 
     // ---- RAW / RECYCLED LEAF ----
+    //
+    // Same three cases as renderNode's raw leaf, so the graph and the text
+    // tree always agree on how much of this item is internal:
+    //   - fully supplied by a byproduct   -> recycle edge at the full rate
+    //   - partly supplied                 -> recycle edge at the supplied
+    //                                        rate, plus a raw node and edge
+    //                                        for the remainder
+    //   - not supplied                    -> plain raw node
     if (!treeData[itemName]) {
-        const recycledAmount = byproductSupplied[itemName] || 0;
-        const source = byproductSource[itemName];
+        const { source, recycledPart, rawPart } =
+            recycleSplit(itemName, requiredRate, byproductSupplied, byproductSource);
         const recycledColor = getSharedItemColor(itemName);
 
-        // If this item is internally supplied as a byproduct, connect the
-        // source machine directly to the consuming machine instead of creating
-        // a separate "recycled" node card. This keeps the DAG as a clean flow
-        // graph and emphasizes that the material is coming from a real machine.
-        if (source) {
-            const sourceNodeId = nodeIdForRecipe.get(source.recipeId);
-            if (sourceNodeId && parentNodeId) {
-                edges.push({
-                    from: sourceNodeId,
-                    to: parentNodeId,
-                    itemName,
-                    rate: requiredRate,
-                    // A TRUE recycle edge: a machine's own byproduct is
-                    // being fed back to satisfy demand elsewhere in the
-                    // tree. Distinct from isSharedEdge (below), which just
-                    // means "this item has more than one consumer" — a
-                    // recycle edge specifically means "the supply is a
-                    // byproduct, not the item's primary expansion."
-                    isRecycleEdge: true,
-                    sharedColor: recycledColor
+        const sourceNodeId = source ? nodeIdForRecipe.get(source.recipeId) : null;
+
+        if (sourceNodeId && parentNodeId && recycledPart > EPS) {
+            edges.push({
+                from: sourceNodeId,
+                to: parentNodeId,
+                itemName,
+                rate: recycledPart,
+                // A TRUE recycle edge: a machine's own byproduct is
+                // being fed back to satisfy demand elsewhere in the
+                // tree. Distinct from isSharedEdge (below), which just
+                // means "this item has more than one consumer" — a
+                // recycle edge specifically means "the supply is a
+                // byproduct, not the item's primary expansion."
+                isRecycleEdge: true,
+                sharedColor: recycledColor
+            });
+
+            if (rawPart > EPS) {
+                const rawId = nextId('raw');
+                nodes.push({
+                    id: rawId, kind: 'raw', label: itemName, itemName,
+                    rate: rawPart, isShared, sharedColor: recycledColor,
+                    recycledSourceColor: recycledColor,
+                    partialRecycle: { amount: recycledPart, machine: source.machineName }
                 });
-                return sourceNodeId;
+                edges.push({ from: rawId, to: parentNodeId, itemName, rate: rawPart });
             }
+            return sourceNodeId;
         }
 
         const id = nextId('raw');
-
-        if (source && recycledAmount > EPS) {
-            nodes.push({
-                id, kind: 'raw', label: itemName, itemName,
-                rate: requiredRate, isShared, sharedColor: recycledColor,
-                recycledSourceColor: recycledColor,
-                partialRecycle: { amount: recycledAmount, machine: source.machineName }
-            });
-        } else {
-            nodes.push({
-                id, kind: 'raw', label: itemName, itemName,
-                rate: requiredRate, isShared, sharedColor: recycledColor,
-                recycledSourceColor: recycledColor
-            });
-        }
+        nodes.push({
+            id, kind: 'raw', label: itemName, itemName,
+            rate: requiredRate, isShared, sharedColor: recycledColor,
+            recycledSourceColor: recycledColor
+        });
 
         if (parentNodeId) {
             edges.push({ from: id, to: parentNodeId, itemName, rate: requiredRate });
@@ -2048,15 +2170,7 @@ function buildGraphData(
             rate: node.allOutputs[out] * node.count
         }));
 
-        const recycledSourceItem =
-            Object.keys(byproductSource).find(
-                sourceItem =>
-                    byproductSource[sourceItem] &&
-                    byproductSource[sourceItem].recipeId === node.recipeId
-            ) ||
-            (itemName && byproductSource[itemName] && byproductSource[itemName].recipeId === node.recipeId
-                ? itemName
-                : null);
+        const recycledSourceItem = recycledSourceItemFor(node.recipeId, itemName, byproductSource);
 
         const recycledSourceColor =
             recycledSourceItem
@@ -2213,6 +2327,16 @@ function cancelDagRender(container) {
 function showDagMessage(container, html, isError) {
     container.innerHTML =
         `<div class="dag-status${isError ? ' dag-status--error' : ''}">${html}</div>`;
+}
+
+// Every caller goes through here, so an unexpected failure while drawing
+// the graph is reported and the Text Tree keeps working.
+function renderGraphDAGSafe(container, graphData, isAdvanced) {
+    return renderGraphDAG(container, graphData, isAdvanced).catch(err => {
+        console.error(err);
+        showDagMessage(container, 'The graph could not be drawn. Use the Text Tree instead.', true);
+        showBanner(`The production graph could not be drawn: ${err && err.message ? err.message : err}`);
+    });
 }
 
 async function renderGraphDAG(container, graphData, isAdvanced) {
@@ -3088,7 +3212,7 @@ function dagToggleCollapse(id) {
     else dagCollapsed.add(id);
     c._dagKeepSelect = c._dagGetSelection ? c._dagGetSelection() : null;
     const isAdvanced = document.getElementById('advancedToggle')?.checked || false;
-    renderGraphDAG(c, lastGraphData, isAdvanced);
+    renderGraphDAGSafe(c, lastGraphData, isAdvanced);
 }
 
 function dagToggleDirection() {
@@ -3096,11 +3220,12 @@ function dagToggleDirection() {
     try { localStorage.setItem('dagDirection', dagDirection); } catch (err) { /* private mode: keep in memory */ }
     updateDagDirectionButton();
     writeStateToHash();
+    saveSettings();
     const c = document.getElementById('machineGraph');
     if (!c || !lastGraphData) return;
     c._dagKeepSelect = c._dagGetSelection ? c._dagGetSelection() : null;
     const isAdvanced = document.getElementById('advancedToggle')?.checked || false;
-    renderGraphDAG(c, lastGraphData, isAdvanced);
+    renderGraphDAGSafe(c, lastGraphData, isAdvanced);
 }
 
 function updateDagDirectionButton() {
@@ -3146,12 +3271,13 @@ function writeStateToHash() {
     } catch (err) { /* some embedded contexts forbid it: the page still works */ }
 }
 
+// Returns true when the URL carried a target (and so took over the page).
 function restoreStateFromHash() {
     const raw = location.hash.replace(/^#/, '');
-    if (!raw) return;
+    if (!raw) return false;
     const params = new URLSearchParams(raw);
     const target = params.get('t');
-    if (!target) return;
+    if (!target) return false;
 
     const set = (id, value) => {
         const el = document.getElementById(id);
@@ -3170,9 +3296,57 @@ function restoreStateFromHash() {
     }
 
     // Only run when there is a recipe library to run against.
-    if (recipes.length === 0) return;
+    if (recipes.length === 0) return true;
     calculateAll(true);
     if (params.get('view') === 'graphic') setDagView('graphic');
+    return true;
+}
+
+// ---- Settings persistence (per browser) ----
+// The target and settings are kept under their own key, separate from the
+// recipe library. Restored fields only: the simulation is not run on load.
+const SETTINGS_KEY = 'industrialist.settings';
+
+function saveSettings() {
+    const val = id => document.getElementById(id)?.value ?? '';
+    const settings = {
+        item: val('targetItem'),
+        qty: val('targetQty'),
+        time: val('targetTime'),
+        bank: val('currentBank'),
+        advanced: !!document.getElementById('advancedToggle')?.checked,
+        view: activeDagView,
+        dir: dagDirection
+    };
+    try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    } catch (err) { /* private mode or full storage: settings just aren't kept */ }
+}
+
+function restoreSettings() {
+    let s = null;
+    try {
+        s = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+    } catch (err) { return; }
+    if (!s || typeof s !== 'object') return;
+
+    const setText = (id, v) => {
+        const el = document.getElementById(id);
+        if (el && typeof v === 'string') el.value = v;
+    };
+    setText('targetItem', s.item);
+    setText('targetQty', s.qty);
+    setText('targetTime', s.time);
+    setText('currentBank', s.bank);
+
+    const adv = document.getElementById('advancedToggle');
+    if (adv) adv.checked = s.advanced === true;
+
+    if (s.dir === 'DOWN' || s.dir === 'RIGHT') {
+        dagDirection = s.dir;
+        updateDagDirectionButton();
+    }
+    if (s.view === 'graphic' || s.view === 'text') setDagView(s.view);
 }
 
 // Colour and layout rules the graph needs, copied into an exported SVG so it
@@ -3295,7 +3469,7 @@ function dagExportPng() {
     };
     img.onerror = () => {
         URL.revokeObjectURL(url);
-        alert('Could not render the graph to PNG. Try the SVG export instead.');
+        showBanner('Could not render the graph to PNG. Try the SVG export instead.');
     };
     img.src = url;
 }

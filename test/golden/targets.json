@@ -1,0 +1,1238 @@
+{
+ "10-karat-gold": {
+  "text": "16901677a43384cf9a52090872d3f70afc45c5f17732ec40b015bcaadb00c403",
+  "graph": "c5f520406acdbb15da7dee32b5689a7bbad18a89ffbea02088da8f406f607735",
+  "nodes": 4,
+  "edges": 3
+ },
+ "12-karat-gold": {
+  "text": "64877ea146fa1ad4f6a8f5b2d7c4d3c7ddc8fd5a222509fc9ef2c2a24997219b",
+  "graph": "64649807bd315c1617eaf60d2886c870df390c6b7f97c5860583d878f14389dc",
+  "nodes": 5,
+  "edges": 5
+ },
+ "18-karat-gold": {
+  "text": "2f337f402a859617f78e335944e172e6263d9a0a125ddb0e7728c13a31d0ecad",
+  "graph": "091cba0a11a8840a49d71ee65eb8b7bbaba59323b4e04f14ff63d60d8d223c18",
+  "nodes": 14,
+  "edges": 15
+ },
+ "24-karat-gold": {
+  "text": "1275df5e3a64d2651fe46622884bca9cec7471032017feae2b7a9fc68835969b",
+  "graph": "61e797064866eeacf72a8111ad117c60276a447e2fde0d337c997c56e6e67a5f",
+  "nodes": 11,
+  "edges": 11
+ },
+ "2x-microchip": {
+  "text": "cf34ada4e5275ba21d676a53493439457a503c8b640cf905637970f9aabb37dd",
+  "graph": "2f2041903d387cfe3e5028bce4532872853530368836fb6cdd78e02c9f2ecb10",
+  "nodes": 1,
+  "edges": 0
+ },
+ "8-karat-gold": {
+  "text": "af62fbfc534f77e6a2f26eed867d9b0956103183a500a8968b0af76d68aadec3",
+  "graph": "fbdad28ec646f46e5b9d920a73ddeaf47982ce372f646f8ffbfd8be004a900dc",
+  "nodes": 4,
+  "edges": 3
+ },
+ "8x-microchip": {
+  "text": "b95c4a8438b4b9a0da93c8ad3fc88559bee36663e73371059446e7b17081c1bd",
+  "graph": "56f8602e522ceac1fe29ce10248bf623b4af57b66be5f700583953d433541ade",
+  "nodes": 48,
+  "edges": 57
+ },
+ "acetic-acid": {
+  "text": "679b06e9d8e28b6e87dc5ce3d1708d33e33762fa33fb607bee691e89d55eead8",
+  "graph": "08fc10f0bf79f73650882cd65b2050ff96899f45d5aa75cb0e47bc5fc4cbb184",
+  "nodes": 18,
+  "edges": 20
+ },
+ "aggregate": {
+  "text": "90e80d1ab06823c09ff4e4184dee1d1974d0fc994f1ce2691cbc5cdc370166da",
+  "graph": "dd7971353728b4b404408dac83d5da4535dc3a3e11f3bf1e9b0c0fc2abb838e0",
+  "nodes": 3,
+  "edges": 2
+ },
+ "alumina": {
+  "text": "6ca6d1ada6cf9d3b632fe4bffd8f65e669e68748fdccef966d6bea29a66ebba6",
+  "graph": "68df7e605baef65d301a9cb4dd39472b8ae0b75d467c1a5c9ddbc5e6b3a2a137",
+  "nodes": 8,
+  "edges": 7
+ },
+ "alumina-dust": {
+  "text": "ed59090afa182c7fe391916a5600cff303282f1e3930ed4a1e404cd87bea70f6",
+  "graph": "fe9a0fe5325b71282f19d30ffb7a1c68e0c1294a588867e74c5739974d3c3878",
+  "nodes": 9,
+  "edges": 8
+ },
+ "aluminium-ingot": {
+  "text": "80d448d5927dad98945329912072c46294cca4b8c34bca8f8100d439cb135855",
+  "graph": "50ba7916bf72a12e54e5958a50ddeb30a352a675ff1b947ec389dc4186da6c25",
+  "nodes": 11,
+  "edges": 10
+ },
+ "ammonia": {
+  "text": "e1628085837d1f9c415a3520fb78e38c82846910fa8476eb0cd0e82768f7e516",
+  "graph": "20397a40061196f6d6ce7435d32823cd38e3c6fd1b23fd0b58a4774d8f82475c",
+  "nodes": 5,
+  "edges": 4
+ },
+ "argon": {
+  "text": "7426af3279c655810d40243ee6394355ccecb28be7fb6e416ef58898c36904a8",
+  "graph": "1f2ba4172f1558d40cefd5b306afe59fdd564cd0784f52ff95b55a462afe72a6",
+  "nodes": 2,
+  "edges": 1
+ },
+ "bauxite-residue": {
+  "text": "77d15f97a6e79417309d5c0f7aa945e431ec2fc44b7a2685ed6edeb34cc0564f",
+  "graph": "1ec7583d633ccafef91f60a1623832c2f5faf8c4ae14b8cbf17c0f07fb6dcadd",
+  "nodes": 3,
+  "edges": 2
+ },
+ "black-dye": {
+  "text": "10573b82dd078377642721aff0a61b2c15f153c380f7664a5e42b9d07d80c633",
+  "graph": "621e3e92fdad38fc9dc1c1f1f5830160271e04ec3b17f48e7a223c74be91f960",
+  "nodes": 2,
+  "edges": 1
+ },
+ "boric-acid": {
+  "text": "d4eb6bccfc136fac74b796e6ee8b7e3f45b6b192c4f73cd8c17153f897a2b350",
+  "graph": "0100ee999bef23e82fc15d8c3ad0a6c19d10996c6a2925bf277a34082387bce9",
+  "nodes": 14,
+  "edges": 17
+ },
+ "boron": {
+  "text": "a6af043003f21290ef848a9aa1482523840694e8f5412dc82a18767ea6b1039d",
+  "graph": "e2d694b572291d38345f696af32c78a961be8709ccac5a4909df41dcd55d5123",
+  "nodes": 15,
+  "edges": 18
+ },
+ "brass-ingot": {
+  "text": "ba334f192cac73279cde4a9cda53aee88ecadfb1c464660b3031c7d11236da25",
+  "graph": "dd5555958efcb7a16f3667cd8b49d215c59913de6cc3a65c3c5f19bd03873046",
+  "nodes": 2,
+  "edges": 1
+ },
+ "brick": {
+  "text": "94bda16b947f7e1302357a4541787b0c731d7f1d284786b8da979e6cc279e1ee",
+  "graph": "d10a6e7d711aff05cde407058b0100609d11acb5313dec327303456d1bf4c0f0",
+  "nodes": 4,
+  "edges": 3
+ },
+ "cat": {
+  "text": "26196b99805211453a294748eae4d455974af3813cc842615c9402cbac9aef12",
+  "graph": "5f09bd5d93d22eea8cb57e974f4e4b861b1914327dffa44b0a07bcf9b5860599",
+  "nodes": 46,
+  "edges": 58
+ },
+ "cement": {
+  "text": "0604494a63722bd35eb6b6be411eefc87090b8dff08765533da0c6dd4efc0bdd",
+  "graph": "84f8bed6ff21342b954c3cdea53effd23abf2f49bf6ecc9fdee43e8d9fd466d4",
+  "nodes": 5,
+  "edges": 4
+ },
+ "chair": {
+  "text": "96f955d07c738087e3a578e6e87d905c746940450ee8c48b5934e75c713d2f7b",
+  "graph": "bc4e1c1dc185f19c05c7571d4c7b7735e6b77b053af9fd849f5c4023f4c151f4",
+  "nodes": 14,
+  "edges": 13
+ },
+ "charged-lithium-ion-battery": {
+  "text": "40bf0f2cb59a74b10b87839cc8b0930f4d85fd2f3cac3b7704c499df18e2e0c5",
+  "graph": "1034217841a30a035e144d3294c2e3d9653930d4dd8bd90e758dc3f77bc053a2",
+  "nodes": 36,
+  "edges": 45
+ },
+ "cheap-water-bottle": {
+  "text": "610be761121b89af7695dce1acfbec773b9a814fdf736f4fef4758fe7ef8a1b3",
+  "graph": "9cc9a75d8ca312beba3d3b9064e6675d4ac3a0c0b243789b651d6f71dbee03f7",
+  "nodes": 25,
+  "edges": 28
+ },
+ "chlorine": {
+  "text": "16de28a1ad3707b79ae9111ffa3771feeafeb465a33f3208e2a219688a4f62ee",
+  "graph": "9cb671134e12d2fe3e5de6a71891c027099ca593dea0e71995bed457fb56ed04",
+  "nodes": 3,
+  "edges": 2
+ },
+ "chunk-plank": {
+  "text": "91929047dd5055458c8f0c7d77cb4d1dcf771157968d3cd8aba8782509b1f4de",
+  "graph": "56e8cc64046fa3c7a2baa7c41d8108bfc2c02f737aabf8e7f2078583d0d4c887",
+  "nodes": 3,
+  "edges": 2
+ },
+ "clay": {
+  "text": "63cc999f99c3b216aec8fbc474f416b0dc5ca22c86e60b2d65e9d96eefc28d43",
+  "graph": "d92bc6a6eeeb57a8f33bafd0806f06b4424ce043bf9a4b015672c4fca901416d",
+  "nodes": 1,
+  "edges": 0
+ },
+ "clay-brick": {
+  "text": "87c66bddda5661511f816e06825266c69703ddd5e2fb3051d8ea6c613c4000ec",
+  "graph": "c2ad1f582f741a8ff305b36819d686d089ef7a48ff317ab7583a31da65b5f0de",
+  "nodes": 3,
+  "edges": 2
+ },
+ "coal": {
+  "text": "fd36eb7dfd1f8a30218cae80b955ca5ba2d804bc844c4c44a76ad5927fb8caf5",
+  "graph": "74a327788c23a478ce45007110261a7006be4fe81af16e35b79eee7f51ef7ef8",
+  "nodes": 1,
+  "edges": 0
+ },
+ "coke-fuel": {
+  "text": "d9cb97468ce5d234c035e6d9c5baa1678386944a1c452c86b68eaea8e4dc0f11",
+  "graph": "43af8017debd6de4ab9c6822179f5453e0ffdc498882ed4212b3903de5e7077d",
+  "nodes": 3,
+  "edges": 2
+ },
+ "concentrated-salt-solution": {
+  "text": "f608cd8096de16d4c2f17ca97f9d65d70e1b8c7097822b9da453cfa86ecfd355",
+  "graph": "d0207a035a0d4eefdcfaf150c92fe4f10ed1b1d3ea7de4a2931b2d777b86c373",
+  "nodes": 2,
+  "edges": 1
+ },
+ "concrete-block": {
+  "text": "7c33f91c03dbf26a05fcbf721d565d0ec7004c7444ee00310205d775b9027be7",
+  "graph": "3b9ef7c4bd38f8e7e6fcd7dd0b36acbc315d8398939b5cae476c82d564809a74",
+  "nodes": 10,
+  "edges": 11
+ },
+ "condensate": {
+  "text": "bd2e4db1160844a1cddca3c590e886c3bb6b7683e861109251baaa14741870ef",
+  "graph": "ab95fdbb17118aa7cfdb2ad75e136e1a6600950c1cc23bf8ee3f3e905ec16398",
+  "nodes": 2,
+  "edges": 2
+ },
+ "contaminated-water": {
+  "text": "9608129b1f80e6fe676195c2473323f1d9d4738aadee0e4f1193813c5e17fbd9",
+  "graph": "72dca539ad0b688ff102865078b5f52b5941b8e422d4e7f92c7819ed57fcd406",
+  "nodes": 1,
+  "edges": 0
+ },
+ "control-rod": {
+  "text": "bd1ffd69f44e23e6fa26e4338fef9e86a6983eaa2dfc547e3fbbb0a2d1d1aab8",
+  "graph": "f4265c34d27fb1d7cc78e1c7b4b35d32ceec1f4d904305643d9b9c7e5b8f289e",
+  "nodes": 13,
+  "edges": 15
+ },
+ "copper-drill-head": {
+  "text": "1a211145e1cd144975b114764475a702dea90fa477a6a938a3397a05ed3f0059",
+  "graph": "0e074e2a0a90c9daf5e53279fef2ee4e3f522dcaca6ba4f8cabbcbd9ff7130d0",
+  "nodes": 9,
+  "edges": 8
+ },
+ "copper-ingot": {
+  "text": "e9c42b4f50b3814a8f87c417c3e07a5f6486da865dae988ffd57af22204091ce",
+  "graph": "a16086d95697701272198e7766d80ef557f4e048f972b0db896a0c291953e008",
+  "nodes": 8,
+  "edges": 7
+ },
+ "copper-mix": {
+  "text": "f7d35a64d08d3bfbc5bc669bf9b8a318023af1d69f567703f20f862479e6aa4d",
+  "graph": "9a719dd5e68b4ef7380fc6f5aa9c61da1565d3d2f5b2b8b71509f4a6582047d5",
+  "nodes": 6,
+  "edges": 5
+ },
+ "copper-plate": {
+  "text": "21d15370a1e5fdfd7271402f484b75c612f2d1a5d5875d7759f8b9870169e51e",
+  "graph": "4950b2501525cb43e7be7b7936beb24f5b2069306132ce62cdccdef17a1936c3",
+  "nodes": 9,
+  "edges": 8
+ },
+ "copper-powder": {
+  "text": "a80c79f149fdc8d39a481efa20889bc13a24de95138c4f6fae92c261d973dcf3",
+  "graph": "378f6974d9c6d768c078aae2ea7b921b0692aa07d009223ccbc1540b2ab6c3c7",
+  "nodes": 2,
+  "edges": 1
+ },
+ "copper-wire": {
+  "text": "a8ca417f1f97ae9043fe06a64a0016a66e3d07a3753e7197755668787bfbb9ee",
+  "graph": "0ed8c18604506b782f7131c44ba192c85342e070fbf9980b664c85fdecaf35be",
+  "nodes": 10,
+  "edges": 9
+ },
+ "crankshaft": {
+  "text": "b85a7248536ac99037e218fbfd27654f0101b313f8b00ef660eaf623cbf7631f",
+  "graph": "3393abc154e814eb4c2128d37b24ae3153acd1ec6ad140655979a0e64a279e7f",
+  "nodes": 14,
+  "edges": 15
+ },
+ "crude-diesel": {
+  "text": "6478eda4684133848a42c39107fcbe8d4e6bb0101e404e22d3debd529a012491",
+  "graph": "4fa330363b1c1c5bde28a49eb8fba4fcfdc11763719f7eeb764846b48072da8d",
+  "nodes": 14,
+  "edges": 16
+ },
+ "crude-oil": {
+  "text": "568014a72ea22f4b25539f4375d7da85c70771b16e6cdf7cc8f5366d745dcb6c",
+  "graph": "7d041b23d5913aa54e375276a555404f9d94aee5390d64541855fff34ec21e2f",
+  "nodes": 1,
+  "edges": 0
+ },
+ "crushed-bauxite": {
+  "text": "670b5696267ca5fc95fbac33422b14e482bebc80d6b37ab5c80829803a458efd",
+  "graph": "d72b331c7daefca0e706c5e40e0afe49afb28f562f8498e42abc6a00ce7d2eb8",
+  "nodes": 4,
+  "edges": 3
+ },
+ "cut-oak-log": {
+  "text": "2a4c8e641b8de5b652eca020b2763f0095429a6fc6714c3b6ff94b4bd99eeffe",
+  "graph": "e9d7ed7d61877321d8b3247d030bd886c0c8b69ebfa65e0f019112dd092ec3ea",
+  "nodes": 2,
+  "edges": 1
+ },
+ "depleted-uf6-waste": {
+  "text": "c9771a4eab8b2ff8d819ead390d8f1e2eb03f7ca0e86a57d4ecb3c6f2f060c34",
+  "graph": "f12535a9fbcb56824f11d1f2a78dcbdf57fe42a942633df4fc73eeeb3dd6fbea",
+  "nodes": 22,
+  "edges": 26
+ },
+ "diesel": {
+  "text": "1d8d4915156860c2b96d6c2225c68fc23e5170805db2300cc03dc24380a11ad8",
+  "graph": "6ae910e399edd3254770ff2f9dcb8beb6e5a9a3ec153d3a73561c6b3f914a9aa",
+  "nodes": 16,
+  "edges": 18
+ },
+ "dirty-lithium-sulfate": {
+  "text": "edf9ef3f3b734e4181f9ad765dc8a8382a96f554c72e56951af434915d0c8455",
+  "graph": "a5f4b448262c8b20497fd119f5bd1528799e987bb24096da8de941e9dd38917f",
+  "nodes": 11,
+  "edges": 12
+ },
+ "distilled-water": {
+  "text": "7902f13fdf6c30560f709965edb56349e54d820616fca34a8b79ac8a5e8fd5ad",
+  "graph": "49761ca39f802e3e3e00de2b8f3bc5fc1d4056c0a89b6f30d1a98e3b73657e93",
+  "nodes": 2,
+  "edges": 1
+ },
+ "dynamite": {
+  "text": "c26e31505fe9f34b2e86cad1bf4282b428b62f7461d52a07490f7bc98c26cd71",
+  "graph": "a92ddc736ae8874705c84f1f0d6d9dedbff4d4d5ff62fc24625b39a873f21463",
+  "nodes": 11,
+  "edges": 11
+ },
+ "electric-motor": {
+  "text": "8a7fa65c70de0ad200ddafd1e8da74d7cbc60486ffe182ae3ac4f2f97ea84c88",
+  "graph": "a4ef154088c66d61f4ff389c5af9d3783d4e4df76be7009c0ae2c0d57fb1522b",
+  "nodes": 41,
+  "edges": 49
+ },
+ "electromagnet": {
+  "text": "3c087f42b5b8d0151819fb0bfbe91bd37b398592f9e2972172a9a78db4667f37",
+  "graph": "a651c8231cae0502095aa46048927db6726120c0a4c733bbad65609f8cc29abe",
+  "nodes": 34,
+  "edges": 39
+ },
+ "enriched-uf6-gas": {
+  "text": "07f4f1212f6d79b3b55ed81175064ec96e85da9e4fc225e01a79529f78fd8f74",
+  "graph": "c1a047a3195af1e7cae95a655f9e77ed21be4a0c908250eea56abc9ba5bc04b2",
+  "nodes": 23,
+  "edges": 27
+ },
+ "enriched-uo2-pellets": {
+  "text": "4572139138d9ed39dfe413a012d70b771c9b0c1cd889f03ad695ef938e5a7456",
+  "graph": "830b353e461ce08fa722732369dfad7a1bf10ea1b3b66c8a7e2a3fa9e8f52013",
+  "nodes": 42,
+  "edges": 55
+ },
+ "ethanol": {
+  "text": "07cfb1945b323f8a91d49edc5d6718ae016df2eff0c6655f6600f30a926a0645",
+  "graph": "993a0f664c04a9d9c156c53c1f69005e4ea1fe2971171d7baef7b6e4cc380e74",
+  "nodes": 17,
+  "edges": 19
+ },
+ "ethylene": {
+  "text": "442c72b4170955ec678c3030e1b44dda418815e23124646e3485dd28d6313dce",
+  "graph": "3767b7783e1df6fe374e1d85b40829106762779175792fb587b235cbceb7f302",
+  "nodes": 1,
+  "edges": 0
+ },
+ "ferroaluminium-alloy-ingot": {
+  "text": "5c85b1481dadffcbf17d58c0b60ad610c90f1907cb07a3b24f4e6963f3f35f9b",
+  "graph": "2bc5544baf8bab210be910c4b954ed2afb59bdd58f16c8a7bcdfef2800de5f99",
+  "nodes": 2,
+  "edges": 1
+ },
+ "ferroaluminium-magnet": {
+  "text": "c1f912e19a556411b1561fe38e4eaa5d27e01ee0319394155021c296c2003170",
+  "graph": "826bba0c3d107c78eb34f05ff89ff58427948271f33d1de77312e06b924d8a76",
+  "nodes": 3,
+  "edges": 2
+ },
+ "filter": {
+  "text": "35711e5a1bafcb0d09a93244a4cd8b76836a0144c773fe0e5e16ff6636f3dc88",
+  "graph": "1283a9b577e85713fca0979ef3d4a4625426d928497d14304def89e6fe31f45c",
+  "nodes": 15,
+  "edges": 15
+ },
+ "filtered-water": {
+  "text": "29c05d4f694da2e90bb043216dbc1407c4e9d55ee2aab266e584cab707ec0843",
+  "graph": "f218a5e9a1692b9c07b131bb818ea4d141cad1117d72a48a1713678dc15d8734",
+  "nodes": 2,
+  "edges": 1
+ },
+ "fission-byproducts": {
+  "text": "94d5b9ac0b86b4907ed7dfde9c6fa6e5f068b1e6f50c993b582cf2cee953672c",
+  "graph": "9f674bf2739fbd5c324f9386a84f0f36c5df95ad4e7a2f6d1a3dd7ac3d75ed8f",
+  "nodes": 16,
+  "edges": 17
+ },
+ "fracking-oil": {
+  "text": "e0a9ca4c7f3e1af736065f82a5419c208ac9be049cabb179e4be47d9867ebade",
+  "graph": "e9d944b8084de10a2b1dc3791f50c9b2602bfb4d25f8cba6edc1777a03328462",
+  "nodes": 12,
+  "edges": 14
+ },
+ "galvanized-steel": {
+  "text": "a30347e6f7bc8c14258c8fa610772e664747c106d6ddf98c73484ab4cbc66bde",
+  "graph": "3c9f04ac15ad3281d13417b0e3dd6b66a4fbc19cf7a668cd62e76d49df318ce7",
+  "nodes": 32,
+  "edges": 37
+ },
+ "gasoline": {
+  "text": "f9d08b02af263f93a1fac9780cb7d6a7eaeeb0b54d48d17eb14767a3eb933121",
+  "graph": "605451d416caac59e700b8dc00faf43fdea71d8b2cbf75249f660cf4b191f351",
+  "nodes": 13,
+  "edges": 15
+ },
+ "gasolinee10": {
+  "text": "63a56b8107ec01eef581ff55fea8558803f2ff3af0c617efaac1494ea4ddcdbf",
+  "graph": "1e22e6a4950e7d3e6b8f4ebb64484b510e3a2bf11a8bd54c9971f0dddd2116b3",
+  "nodes": 18,
+  "edges": 21
+ },
+ "gear": {
+  "text": "7de0379d5ed8ff7dba67fd073d2c43439059cfcdbe72753488f5b26a114324f7",
+  "graph": "66cc06c5711239b29fa8b5ab95d64e630a66400a68ee6f3991f70667b7dfbf6f",
+  "nodes": 11,
+  "edges": 11
+ },
+ "gearbox": {
+  "text": "586e9c9bca5327370b97f37a8fee09d9a550e45a6639fdf892e6d58c9afcfc21",
+  "graph": "91407e4b13f9215d6d7929a69fc9bc4b4ad942bc44b0e318ae24a0ef9c4adea7",
+  "nodes": 39,
+  "edges": 43
+ },
+ "glass": {
+  "text": "37146468924b19bb6aaad6bd8bcc7d368400d91025766deb4df78923a9baa70e",
+  "graph": "994471d93c0fa9b7d0ba27f60c40e21a54b8e8b01d498c81e1db1e843e9f23f7",
+  "nodes": 3,
+  "edges": 2
+ },
+ "gold-ingot": {
+  "text": "f5e0f83b4435a7f124f09f3a5035f836fd5fa028fe585e355c222b82d38b063f",
+  "graph": "2a2d3a3f78bf08cd54ef20770be14cfd4f7e0dc3c9475dd52fbfbb10f0e468ee",
+  "nodes": 13,
+  "edges": 13
+ },
+ "gold-wire": {
+  "text": "8ee82e314f71024cc61c9f96ee1f811a5584894df12af77cbd5196ef13919d73",
+  "graph": "231c6e0ebea98343b74aa0df16368e4c9e6b2604cea7c6d33563fa5e75fe13c7",
+  "nodes": 14,
+  "edges": 14
+ },
+ "graphite-iron-electrode": {
+  "text": "838a7207fa7aaf758ce1fb87d914c82d3c9acfa096c8b91e930520c87b596684",
+  "graph": "000b8cfc9889795ef02bb09e6146059f931c88410d7fc14531f131cb8082327b",
+  "nodes": 9,
+  "edges": 9
+ },
+ "graphite-zinc-electrode": {
+  "text": "ede82f8d9801321302d6ca026caeba3c73df197b13134504a018e46ebac65421",
+  "graph": "4ed58ac6196854d58a3d32cb24e839cea3aeaeb0ee3c255f79df3fcf7f640c75",
+  "nodes": 24,
+  "edges": 28
+ },
+ "gravel": {
+  "text": "235ddd8d76c93f8aaba9e55d42a1071b3b5aedc888f48502284530f7b18fd30e",
+  "graph": "400caec73ccb1b6baaa91889988e871813125ae028861b0ed11866ed5b4f1190",
+  "nodes": 2,
+  "edges": 1
+ },
+ "gunpowder": {
+  "text": "8adb71bfece66bf88ccf1dc71612dfac165827ed9afbc199a79867305b5b6200",
+  "graph": "77868e22b2acd2c4ddd97b57594cad8b4e3287ed339eea3af4e070807955e7d2",
+  "nodes": 8,
+  "edges": 8
+ },
+ "hardened-plastic-casing": {
+  "text": "95ca97be905f8de21d55ab2d682a8b471a5500a1fa6777ebb4f9db1481285bae",
+  "graph": "14a23deb2326a42a82f77c368b53cad9482018f0f2113aa4c324e7550c3b6fdb",
+  "nodes": 19,
+  "edges": 22
+ },
+ "hardened-plastic-pellets": {
+  "text": "935939a1344165517fa08b0cd2c360d248d7097af8bcfbe5d43822493d4a3aed",
+  "graph": "55cb13165a98b6c8404eaf0fd681e50fe4dfe02d2c6d8f2bbb04b43cfd9951f7",
+  "nodes": 18,
+  "edges": 21
+ },
+ "heavy-oil": {
+  "text": "5c56bcb4a95c9ddf09353a29b1316daabdb6d167321fd97a417ea7fee58499ac",
+  "graph": "76dd0b4b266bd5e76a336bc552e58812c8ab16b5e83835821ffea010ac59efa6",
+  "nodes": 13,
+  "edges": 15
+ },
+ "high-pressure-steam": {
+  "text": "b20c2a88d09644f6c5eba34d2a0e1a4b720d4ba051d7a18a47ac64e392d35c11",
+  "graph": "0225272cfbbe673f356b3f05bd535c699a3017572a69851bb28eb67a6288ff19",
+  "nodes": 3,
+  "edges": 2
+ },
+ "hot-crude-oil": {
+  "text": "e511e1fd8238c9b8f7590841b14b04164e2c106670e32d8255f711dc5a36dd0e",
+  "graph": "16754b8553f716094effd82c197e2888c21672a35ede5ec4023262b699aa39f8",
+  "nodes": 2,
+  "edges": 1
+ },
+ "hydrochloric-acid": {
+  "text": "e9ac7fb9e5bf3aeffdf7a092e753dc239feec55822fe473b65d53496f4937707",
+  "graph": "28a6e148c3ab23c94dc9b78879ed25734c10a49d766b88beb0b6cb8d541b7043",
+  "nodes": 12,
+  "edges": 13
+ },
+ "hydrofluoric-acid": {
+  "text": "6d0d5ce85fc6961cb9a14362bc3ffc6ca911c7cd72bea07bae276bf94b977d3d",
+  "graph": "127608f94b3e7df0356d40824c73fc35e65587a05f74fc96e22a1d34d7efd146",
+  "nodes": 11,
+  "edges": 11
+ },
+ "hydrogen": {
+  "text": "439ce8e7437fc6cb2bf8ac9317041d8ab5f6fb3349e00f01fb7296e2bfc1e168",
+  "graph": "e07cd3081513fb2d3c55972c5ecc70017a179279dee8299aa581deac2c63721c",
+  "nodes": 2,
+  "edges": 1
+ },
+ "hydrogen-sulfide": {
+  "text": "76904ef5f4f8aee3d27265f9564f1aba5444abb208d5156a8b392df1b03b2daa",
+  "graph": "8cefdffa164d7b80f6801abc0e98fc8d9e21f603a6a4e69af28af1db6dca73cc",
+  "nodes": 4,
+  "edges": 3
+ },
+ "impure-boron": {
+  "text": "3411af83d7ad294a0e52c2f28652dedd964b80d4b397a5cb68adf43378d2cf70",
+  "graph": "8594ebe9954c26447257f384607193df3d9a2dca94cab1d059e63b4955a4e917",
+  "nodes": 5,
+  "edges": 4
+ },
+ "insulated-wire": {
+  "text": "3166a2643c91a6b0e21f06350418a4cfc529c08d5a1b1894ab989a9aa10f7f23",
+  "graph": "c55809e380d8447f6ea5b2246bdf10220d58798bdea01df86c2b454c9ed474aa",
+  "nodes": 25,
+  "edges": 28
+ },
+ "iron-coil": {
+  "text": "cb03f7a2c3a94d53ced98ff01af157d6c9bee1e15f55537508c82c54e14eab11",
+  "graph": "ff0925ea394edc85c7b433f6c348f98dca9f926a9b8ffcf6f299f6dca3ef051b",
+  "nodes": 10,
+  "edges": 9
+ },
+ "iron-drill-head": {
+  "text": "0570624c4fbd7d5f5b86652127d71cba984b05029b068f42b3e71126e029eeb3",
+  "graph": "250d30c565b05cce30cb84033c2d641162aea9ee21a8cec03ef2323bd39488c4",
+  "nodes": 9,
+  "edges": 8
+ },
+ "iron-ingot": {
+  "text": "65b929879d241c220f5d8be5a1f2a4f4e5eb0a7d613371c8fb04a352896a820d",
+  "graph": "4557346267d23747fcd4e891f251234b8fd05534a46f1f4c81ce3db4878abd02",
+  "nodes": 8,
+  "edges": 7
+ },
+ "iron-mix": {
+  "text": "5ce445e5faad7cfddf1db4bf953d6471fe4abcfc253482f74233704a6e742f3d",
+  "graph": "111b6e468ebfcdcb25099080c9f365d4918f6098608724f7e8af917a70aa3309",
+  "nodes": 6,
+  "edges": 5
+ },
+ "iron-plate": {
+  "text": "4b62c720a0dc0f06a1766e3a403dc30273c930692d000441cd7124315dec4118",
+  "graph": "2ab6439d7d618107d5836c41385be18ef6b8af9688ff6dac3342b0ffd7b1d0ab",
+  "nodes": 9,
+  "edges": 8
+ },
+ "iron-plate^2": {
+  "text": "cad799d59e00bb1d5773aa7e5178c6784ba69cbec243aeb5a0a961bacce9a32a",
+  "graph": "f0e2e804772ae2cd0ed6ba4c72cb7658ba3980b97257d5b9df1ffb9520c3d9f4",
+  "nodes": 10,
+  "edges": 9
+ },
+ "iron-powder": {
+  "text": "fa8663adbf018f70cc95d31eec4fec16086cfdb97898e54c39a480ed8330aa92",
+  "graph": "62e260dea3ad1d2387d0add7ae400dfa69b9f43280d76c99c8eb31480423afd5",
+  "nodes": 2,
+  "edges": 1
+ },
+ "lead-ingot": {
+  "text": "b14b0e1c2826585f020fb6d1701d4568b18d82f45ddc25b5554cb9579664d6f4",
+  "graph": "2a3a60d36d044e35f20def03b7105ae3a61658cb055a254b8173adb5a6457401",
+  "nodes": 6,
+  "edges": 5
+ },
+ "leaded-gasoline": {
+  "text": "46aa7eba6a6700c363ae94c6156b75ce65a13007d4ffbf537a9625ac16082c79",
+  "graph": "61db9ab7d074a25fd9613cf961c9ba9ed346151a4667f5bfe596c881c026e153",
+  "nodes": 22,
+  "edges": 27
+ },
+ "light-oil": {
+  "text": "68b7f1706e439f14814291e2c988442c1addf57fd85b4dfd20803918faceb9dc",
+  "graph": "17a9b7ec13a9b949c1f9d34263552f386d90716a88a440d724317f394675cc23",
+  "nodes": 13,
+  "edges": 15
+ },
+ "limestone": {
+  "text": "5e283037bf48cdacea1f7b0589890643af0dbf3ea644cacc587c32cdeef06948",
+  "graph": "97ebc0bbbfc1b3cf444215a4e359332dc99a11ed6bd334b5ee35ef7ee211db10",
+  "nodes": 1,
+  "edges": 0
+ },
+ "liquid-aluminium": {
+  "text": "1330683cf2fd0c6e0331e0bb26bfb26d276b9eb319308f7e1f0f18f4b587b894",
+  "graph": "d162f925961cd025ed86dece12d51485c1e714a264bc12919feffc396dd95d65",
+  "nodes": 10,
+  "edges": 9
+ },
+ "liquid-argon": {
+  "text": "bd36dfbeb973775d7bd26bf055e5d7f9ae17f2a0367919cd09c0f4a2a7c1a11d",
+  "graph": "82f37b7ecc039104ba98a9eae9a23d7ce710536f138e16ff9309c759b218718d",
+  "nodes": 1,
+  "edges": 0
+ },
+ "liquid-brass": {
+  "text": "754816a0ae10ec85b221af857501937658468f702094d648bbd5a1b33a45800d",
+  "graph": "664eaf82066b2a74e454951626961af7aaf8603ac9f50f870f9fd47a06a269bd",
+  "nodes": 1,
+  "edges": 0
+ },
+ "liquid-copper": {
+  "text": "2069e3e35c7b9606cd38b2ee330ccba05c0985821fca362b78bdd9b3153f29b2",
+  "graph": "b38f4972f248418c48db5a0b2489a55cb07e73832340ac50279b0ffbcf06da77",
+  "nodes": 7,
+  "edges": 6
+ },
+ "liquid-glass": {
+  "text": "36ff68fbe4b824a2de68790262276e484b12ab32840192801836add91693da93",
+  "graph": "031d488209342e2d08733303eae559927471389e040d8f7785042d782bbb7eb1",
+  "nodes": 2,
+  "edges": 1
+ },
+ "liquid-gold": {
+  "text": "bea4accf8d1e2eda581f1e5bce8bb2dbbc7ce6f6622c7d5e418a2b50eb4db94a",
+  "graph": "35f2dfd4868ba994e9a09c4275d75f07cd5ae4991d8eb7e3bd9204ecb1010790",
+  "nodes": 12,
+  "edges": 12
+ },
+ "liquid-iron": {
+  "text": "be1b338630fd8ec3ff1c8cecb04c38d36d1fc04a0c5891f14cef3e78efcfbda4",
+  "graph": "380f3d9625ce62dd16f1cd80f040426a308f8540b394edf23989da3cb08f581b",
+  "nodes": 7,
+  "edges": 6
+ },
+ "liquid-lead": {
+  "text": "eb0012b329fe48bad500afe8e00bacc3b774deafd649dda59dbe3dca85f0fb74",
+  "graph": "844db630d451f3cc91db5a795316ccc89a1863cea14980d27863ffec7754fc14",
+  "nodes": 5,
+  "edges": 4
+ },
+ "liquid-nitrogen": {
+  "text": "ef2b63be53aa9256497658dc1ffb0096823551a0c864e73931fb53d6081a3149",
+  "graph": "3a82d1ed168179a2fc279de155085dd87ae45d0875a5394fb517dc4b1df1dda2",
+  "nodes": 1,
+  "edges": 0
+ },
+ "liquid-oxygen": {
+  "text": "30d2e92663ff3a5e1177fbe7d045865c18f1a4127c4cee33340e7df1c917db49",
+  "graph": "f49a61e2ac01f8745ae050cc94181e21a5921f187dced1c1a7d6b2a2144c0e57",
+  "nodes": 1,
+  "edges": 0
+ },
+ "liquid-sulfur": {
+  "text": "309c6a5ee7a1f11a6005f2d98ca7b324abde4fc09ba7e98bcfd4ab7a30dd2a36",
+  "graph": "cdc6029ca1f294b2520e92c0b7d50e072c21e9fe7d535650f05d7101c3550174",
+  "nodes": 6,
+  "edges": 5
+ },
+ "lithium-battery-pack": {
+  "text": "6e9906c140a4314c0bb22b67bc4d2cc3f4762d4c5388a1cbd41f0f4fac3f3baf",
+  "graph": "8cb40e8953eda0b7e1920856e8494df5d8bbc71c80fb99f3a05ffe3e56e8a7e8",
+  "nodes": 44,
+  "edges": 56
+ },
+ "lithium-brine": {
+  "text": "ac9c2b161d12ad7343b9a4b43c609fb32b399b30140ff273bb40341388563b45",
+  "graph": "9d5d7b118509141749af9da0b71c52dad7b62f5ae68c63c4f66d88123ccf4cc6",
+  "nodes": 2,
+  "edges": 1
+ },
+ "lithium-carbonate": {
+  "text": "a9eb8919bac51bc061ec3fb83a7f02b18150b533a56fe66efee2b1fe9a19d68b",
+  "graph": "039c223a7f185c89f19376dad03c450af6b5591ebc5bc68d18c75d051c2a878c",
+  "nodes": 15,
+  "edges": 19
+ },
+ "lithium-ore": {
+  "text": "802285e87d2ef8a452444e48f047d2f8eb9e00d01ca5e81afaf70bd5b1d3e121",
+  "graph": "d16669afd92b7391b3bcc385a1ad4387760cd7c5d50756c4cfd9a3c64b222145",
+  "nodes": 19,
+  "edges": 21
+ },
+ "lithium-sulfate": {
+  "text": "e38b614653ffcf17da30acd00794d7c27d2945fe8cbb9b1b2b62e90bdda48bb4",
+  "graph": "0986004afbccfc0799a16579a9ee0fb0f6e9be49833fd58d5f0e1800f1baba56",
+  "nodes": 12,
+  "edges": 14
+ },
+ "lng": {
+  "text": "6ba25968f38d0e506de36094305ad5ff2ca5be7b71713a5d0ecbf221ee70ddd4",
+  "graph": "9ab8e50a43baabe0c19c72b10edd3aa7aed96c3dade6b52831c9694d01f458a9",
+  "nodes": 15,
+  "edges": 17
+ },
+ "logic-plate": {
+  "text": "41cba7ccf614d588e935e4eb94b98963847f83611f1c231748d4030baa5a9c1e",
+  "graph": "5f686a23c6bfaea1996cbe82b8c357e86b6f0e9cc8f2f981687eec3d26adc892",
+  "nodes": 34,
+  "edges": 38
+ },
+ "low-enrichment-fuel-rod": {
+  "text": "d6fb9ee3d3d2e9ddcc7bf6ccf2ee3d16be664a43e9ebbceb5b1f22a35f5ef83e",
+  "graph": "478ed17c230f1f5fe857c693bfec1caa0b110235957be9a21be5917cdb5d81d6",
+  "nodes": 23,
+  "edges": 28
+ },
+ "machine-oil": {
+  "text": "c59eba26bab86186742da5b76e15ab5a246f67ebd19c42d8dd5db7a1daf6b368",
+  "graph": "ef146a4821ac017cd666a5a2d25594c9595ef9a29459637e027f506e79f19680",
+  "nodes": 18,
+  "edges": 20
+ },
+ "meg": {
+  "text": "f308713fbc6bf0a4530ad127325e8d388beee1402e4a747bf33ac759645a30db",
+  "graph": "e45e96f6a87dfde9727e896abbf819290051306769c197bb8ff41e4c8c2410e5",
+  "nodes": 2,
+  "edges": 1
+ },
+ "mixed-fissile-nitrates": {
+  "text": "48883e7d5820e229948b09c6747256f6c5b7cef4912aeaa5a15b6a4de0e10053",
+  "graph": "05f32e525bf6afe72d8730f25e3d142af0879390a7a448c8c81daa37314d65b2",
+  "nodes": 13,
+  "edges": 13
+ },
+ "mixed-fissile-oxides": {
+  "text": "f9226289c2d94de6eb50f83b4222aa47fdc0b9608d14aeb74b99694fcb09abe2",
+  "graph": "ce3829c855a29adf417782263268775a234590f7425e9f287ef464fcbcb3d998",
+  "nodes": 34,
+  "edges": 43
+ },
+ "mixed-uranium-oxides": {
+  "text": "d9b4525c3d4427e460c7029877a1340037cc047db0cce43704865f5334902cea",
+  "graph": "d39c6f111e91efd76ca11560c2469a05f241411ddc2c3686614e2b384ed30e38",
+  "nodes": 13,
+  "edges": 14
+ },
+ "molten-ferroaluminium-alloy": {
+  "text": "1586f458008389aa4c90ead7631c54389bd0830cff30ef204d4620301202f5b9",
+  "graph": "82eaaeb9d43501619fdd18dd1207b7220184bd7b1c42a2b6287f764e95afe83a",
+  "nodes": 1,
+  "edges": 0
+ },
+ "molten-purple-gold": {
+  "text": "a63483bf95d70d7aa089de772d158ae35b3551dd876cf9aa5b0cf668aed39a4a",
+  "graph": "0a5a9ed911173183fd3abcff8fd2bda946c52e44c26cd8240e51e5933bae0e18",
+  "nodes": 1,
+  "edges": 0
+ },
+ "mox-fuel-rod": {
+  "text": "acd449fa6cb86e698499f6f68819a874939e9d9301672e529493437a50294207",
+  "graph": "479f9f735949f3ae7181f6f7b7ddff17cbd6880eb26b1fd81164aa977cf0b286",
+  "nodes": 46,
+  "edges": 63
+ },
+ "nails": {
+  "text": "9cf83a0625e3ad514c66cd8b9b676ad0d54dbe2cd25fd3a9f65ef35ec7ca2ab5",
+  "graph": "9d734755e2fc28c25701f736f6eacd80865e46c310791759233095584f85ba33",
+  "nodes": 9,
+  "edges": 8
+ },
+ "naphtha": {
+  "text": "62543dccf392b61780f37672a7ed68189eb19b044d492ac57b83482052812f69",
+  "graph": "1a524f793ef19bc60cfe605ff6f76412c27a43844a27ebbfeff343abc38d4925",
+  "nodes": 13,
+  "edges": 15
+ },
+ "nitrogen": {
+  "text": "b0a128415046909acd619b61ca8ac4c530bbd39ac2edd478e4f7d0e968ea4b82",
+  "graph": "d31aa9d5c8484c482a76b88038fa97ce5c9f616f354588441ec0b03dd2e563aa",
+  "nodes": 2,
+  "edges": 1
+ },
+ "oil-bottle": {
+  "text": "b68e5dd120a344bfa8144152d9e50c13be3a04aab05d5935c48742565c315a2c",
+  "graph": "f1ed3ec8a17275f7d0136bfcba68b39e81ae86b24f9dece9277f364800f32e64",
+  "nodes": 26,
+  "edges": 28
+ },
+ "oil-bottle\n": {
+  "text": "73a2317ed377ea8db43f0f0c16fcd5b3186ef6a7a6deecf29b1930ae32d3f21e",
+  "graph": "fabcfa2bd240d53c6bf2b92410e7afc13aab740837a5957caf4273bde0400a63",
+  "nodes": 3,
+  "edges": 2
+ },
+ "oxygen": {
+  "text": "294c113272da114f9cd3ec1c8b396ecf386deeb3ba46cabf986c749558971232",
+  "graph": "1cf171fe1f28776a33080ab4c6eec3c9b19636be4e08daae06d03c09456d9c26",
+  "nodes": 2,
+  "edges": 1
+ },
+ "packed-present": {
+  "text": "961c168aaa0fec4c2c2d4228c82640e2d0d706bfa4a21fe0326e01caadc4b16b",
+  "graph": "761d78134955f26f2ba5ef047c97ed48c988c3934af144ff95e40b197b1d8f1e",
+  "nodes": 11,
+  "edges": 11
+ },
+ "paper": {
+  "text": "7ca375947321ba1dc0216693350d56d8bc254cc1e41c3a0b5b8a5fba0c5f93ea",
+  "graph": "950ada33ca4f847c7ac99a93abbd84dc54ff2db2c91ea40910d10a359c69b514",
+  "nodes": 2,
+  "edges": 1
+ },
+ "paraxylene": {
+  "text": "86bd69dc26b429a960a7e144a32dd11b5c53945ac4959b431e97c8cbf95e6f0e",
+  "graph": "cbf72e2ac7e403fad15817da4b664638b7924ecc74ed7a9dce0ad946de0d4778",
+  "nodes": 1,
+  "edges": 0
+ },
+ "phosphorus-oxychloride": {
+  "text": "f9fe989984544aa2037c9d899d4c15aa154e45bccb38c590fc772400492a4f52",
+  "graph": "42c3f6fa6d100a11393da303b685ebf2df3ea74bc21ea33dd4ff4c31fe4a9d76",
+  "nodes": 24,
+  "edges": 28
+ },
+ "plank^2": {
+  "text": "0e5818a727636a442ad2360bbef04ca1e85b4283b4e8f7e24ada88dae10279c8",
+  "graph": "f4a31e2ac2bfecd97014ef83b3d4a6a20b3283ab148759cc36f8c71cb114abc3",
+  "nodes": 5,
+  "edges": 4
+ },
+ "planks": {
+  "text": "15059ee84ae5a049248838b9e3637077a711f07392e16956c86252130f639502",
+  "graph": "e667116f2a82016d1727bdb7218d347e3c41026b837894c58c4e5d43db4ee0e5",
+  "nodes": 4,
+  "edges": 3
+ },
+ "plastic-bottle": {
+  "text": "431a6b3d68a15f7c018b8d0cfc8dbeac97c168b7c3031b73e460ef78c2801995",
+  "graph": "564306a4cad3245f870934da771ae40ae9c5b0fb7ab5695498598f6a98be0af6",
+  "nodes": 24,
+  "edges": 26
+ },
+ "plastic-casing": {
+  "text": "dd1ba5751aa6106bc1d9f01a510db12b831e4b306bd78cda3882112479f43566",
+  "graph": "f4d8dd828e1e302a41d8613467902c2035365c1b5334c69c994b21468087447a",
+  "nodes": 24,
+  "edges": 26
+ },
+ "plastic-pellets": {
+  "text": "56d070b42c67db2097a77534a253e062c4c6ba8c167b33ef49653c8067813277",
+  "graph": "0dc7b0e79b05c5c526e4f5fa84c801f81feb434fa57b0f8f40d26afc37fc2d66",
+  "nodes": 23,
+  "edges": 25
+ },
+ "plutonium-oxide-pellets": {
+  "text": "08e88fd9636d5a4084244c95a69cc1cea4b6c6357a5661ad36ab810d4f48953f",
+  "graph": "c1164174302b42b5a5dd76b9fffd13abe024514bf06a4fb61d097445bf9c13d6",
+  "nodes": 37,
+  "edges": 49
+ },
+ "poor-quality-diesel": {
+  "text": "e79476c024bdc610c6765f9d3c1eded15235cebef0cc1f42cf3ba3fee9ff5307",
+  "graph": "737f736cb7c125f1e130d5bd47181a90fdfda7bc3e363a5a2742ea90e882657c",
+  "nodes": 15,
+  "edges": 17
+ },
+ "powdered-tungsten": {
+  "text": "db3539450d8863b006341faa4346a5a6f82110e4f6f463b7266463d7e38968f8",
+  "graph": "aa3ca8792dbc9af13e2a17d55948831a3ae48bad468a4f0137c7c2b082c21081",
+  "nodes": 4,
+  "edges": 3
+ },
+ "powdered-tungsten-carbide": {
+  "text": "d4361fd5c38348a645081369b5ee8faa00749f70bd3e667cbf382abfd87eeb5e",
+  "graph": "3895809f2a3f2c860a30d63be0930aafed873efe2b5149586e8072fb81a5e53d",
+  "nodes": 8,
+  "edges": 8
+ },
+ "present-box": {
+  "text": "e2f45d4029cab907dde396fa73e78e8d2721e27983c4ac88caf89aed9fbfc925",
+  "graph": "64c34a6cfc5a6865d54d677a0522f695b31260beb03b178b7f8ee13ea0956a3b",
+  "nodes": 5,
+  "edges": 4
+ },
+ "pta": {
+  "text": "66a93c558eb75960091fb1d706cec0b6054e85fe3bec1724c7a96ff97f0f39f2",
+  "graph": "7ebb2770e694e58f026e9ed35f49fce458398efe9f1e582249b13c755ba45345",
+  "nodes": 20,
+  "edges": 22
+ },
+ "purple-gold-ingot": {
+  "text": "5ccca7571b87e7c1b202d15e1dc2fdb7b61c39c5f0afb8eb8a09b96feeed134b",
+  "graph": "7b747a18b129ee48b8494e2f2b4d9d164efe58b560cbb875356018db964a6df8",
+  "nodes": 2,
+  "edges": 1
+ },
+ "raw-copper": {
+  "text": "614ec2f51c9bb8b646395cb0f70c501553e02ffb5d528fced2bd8f6e40db2c2f",
+  "graph": "6c45f1cae95f132c3e7eee30604851c63bb4400ebf26449a3be995afab3b49fc",
+  "nodes": 1,
+  "edges": 0
+ },
+ "raw-gas": {
+  "text": "285caff63eb8286673e7d0951a2dbf59a261c5880d8672c19427466dac7554c3",
+  "graph": "7542e0f462971c4b34845c59ee46323e12a0df22b935fd91db880435c87b4af5",
+  "nodes": 1,
+  "edges": 0
+ },
+ "raw-iron": {
+  "text": "764e807fe2e45744675e443257a4233386af33182f25cce30bd0ad94303aef01",
+  "graph": "4c3d2c8697aa2fcd740a0364b0419c9c2d6be37d26505cc9aa7186fd562cbbe3",
+  "nodes": 1,
+  "edges": 0
+ },
+ "raw-lead": {
+  "text": "04a2cf22025c1767db3ca53fa8ca0ed546d62f80499f9b65bcc3ff5fe4073df0",
+  "graph": "04eca1c41b0150a6cc3ed892e192af38be837b3a21b57751a9147416ea596008",
+  "nodes": 4,
+  "edges": 3
+ },
+ "raw-zinc": {
+  "text": "becd83e365b36b9433d122a1c9fb2d4d3771b693622367cd3923db1d300791a7",
+  "graph": "cb3953d1558aa89d177e9899deb10c0df271986e664b625071b88c7908c937ef",
+  "nodes": 20,
+  "edges": 23
+ },
+ "rawmix": {
+  "text": "a6b4c1c1b19a81f2e13799644ee73623fd3bf695eddf8e090a6793fa16f2285a",
+  "graph": "c7fa9743fff5a5f30327bbeffdd81c1ea4238329d4ab438ceb000bf1d0427b77",
+  "nodes": 3,
+  "edges": 2
+ },
+ "refined-diesel": {
+  "text": "48e1da1a33396ae9538efe89a2cb37fa4d65bf5525314736b3036a8db86d4818",
+  "graph": "80e084b301b9845cae0ac012751c046da2a20d2e3b9be147e390a731a27eea66",
+  "nodes": 17,
+  "edges": 19
+ },
+ "refined-diesel-bottle": {
+  "text": "546e6083e9dccdcaab1213340e085895264112cb890896648ff875afa653f171",
+  "graph": "0751190d126c853f99794928b28a1d62a683faed016cc53b1d1d2489d8bc993d",
+  "nodes": 29,
+  "edges": 32
+ },
+ "refined-gas": {
+  "text": "167dd6e4135044a520a3260692f8e065d8d85d29f58b64ae71bd085886718b51",
+  "graph": "4814be1b21dadeb2474eb8fe384705d932a772b82d592cfdd446bdeef384650b",
+  "nodes": 14,
+  "edges": 16
+ },
+ "reinforced-concrete-block": {
+  "text": "a8efa4b1560617281dc17e48d6861d66efd81440501521f9e45511810601255b",
+  "graph": "ae5552cf0e3e04f764b7c5d635a27bb76e666dafbc18c3164dd1659fb0e04418",
+  "nodes": 20,
+  "edges": 22
+ },
+ "reprocessed-uranium": {
+  "text": "d383b815609b189382b4af512fafe9d5e21761273129bc7941c3bafd75ad9521",
+  "graph": "1743cc7ed7f0a28dfd867cd730fe751a09de0915d50634966ce528867b99aaf3",
+  "nodes": 37,
+  "edges": 49
+ },
+ "residue": {
+  "text": "776b2439b8bf3a1ad59e18e6af7f8b148e32ce89af769b9a58c0c8c4aa949977",
+  "graph": "9368d0690e8c2c018ee37fb2a4c5ee60971caefd1b5b532b338ff4a7ed19a058",
+  "nodes": 14,
+  "edges": 16
+ },
+ "residue-bottle": {
+  "text": "a57c9c9e04f1210d6399f0987cf52ed603a81a13b66f25b7df7d77254909219c",
+  "graph": "3645b2572be1ad4141cd0ec1a49ca1c520ddd27d004467cf5e31241db9d19f0c",
+  "nodes": 25,
+  "edges": 28
+ },
+ "rich-soil": {
+  "text": "8f8a2313c007a4954527e70ca3d58c5687bae7bb336f90b3c6fdd9b62bcffc98",
+  "graph": "46c46891fce48d8b8a5bf005c8e273aa9e6db9e54b4c83a37c7ab7b400150256",
+  "nodes": 3,
+  "edges": 2
+ },
+ "rock": {
+  "text": "e77feff0811293a6550042c906f8a2dea99c28d21fa99eb07284cde6aa70d3ee",
+  "graph": "13d482787749e9ad2b3e5367749b7d2ad0e65c8705e568aacef3ccd5c98fa943",
+  "nodes": 21,
+  "edges": 23
+ },
+ "rubber": {
+  "text": "80284b51dcfaf97adda29e32b6578f314673533fac18eaf6fc94b9399305b15b",
+  "graph": "b995b177e5b174c1c2b7f24f3f57cd98114cd254826679ccbeff7e5a971eec66",
+  "nodes": 14,
+  "edges": 17
+ },
+ "sand": {
+  "text": "04a03a148b82404975fb115e4305fa37c0767dacded80ac85efdf7e26f0b8fe8",
+  "graph": "455a81dec80597190912d2cb836fea179c84e4afae99f8b82badb33cd6fe3b47",
+  "nodes": 1,
+  "edges": 0
+ },
+ "semiconductor": {
+  "text": "bd5ce9dc2b8d4a78a5e9ac4535fde1ff934ff3a4a87713a3b69ce901c131c126",
+  "graph": "860821e10f7804fb5e054466e93fda0334f8cdc189f0c0a47765cbe14b6bc9e8",
+  "nodes": 14,
+  "edges": 14
+ },
+ "shallow-earth-fragment": {
+  "text": "d7a95f0ff3a3a7f08706828f3385b3990df8ac5d93900a322319a1340203f046",
+  "graph": "0dc64a3966ae3d3b0aa7a4bcaa0e269bd6bd07bd6a8dcc04e0cfb871ff2985a4",
+  "nodes": 20,
+  "edges": 22
+ },
+ "silicon": {
+  "text": "f070deb4325cd60468f69997380ae53ec3854e5e357f2f04820e25cb63660dc6",
+  "graph": "24185716f20d3e780d67416039c3a49aaef760ea276cfd625e0943895e55505f",
+  "nodes": 5,
+  "edges": 4
+ },
+ "slightly-enriched-uf6-gas": {
+  "text": "7c02e1bcc815ad386a3a28a2eb5c77b4dbe5a6a20e132a60a9f54178c371e70b",
+  "graph": "d9d4e04632b404661623b4255b2288b04cc584f9dc36caa653d965507cad7982",
+  "nodes": 22,
+  "edges": 26
+ },
+ "sodium-carbonate": {
+  "text": "9e17c727ea9f625c2c99ebf40d9fc38da21a70461a4c333ae2093f08b4bfec2c",
+  "graph": "02a99b4b28a1272101818c024379b35e8eae5505272d41aad21e5b451278a0a7",
+  "nodes": 2,
+  "edges": 2
+ },
+ "sodium-hydroxide-solution": {
+  "text": "4a7800191eaebcde7e32295362ec305b5261f1b81d3b808265f6d829fff7702e",
+  "graph": "01b7e1bc0c070a176125b28a3616a5dbf600ef6d592ac35fc1e66749dee7fdd3",
+  "nodes": 3,
+  "edges": 2
+ },
+ "soil": {
+  "text": "c6b35058e7368880c6f8ef49d6e8a11f62f2c80bf1ed8dbc6f421a77fb50b79c",
+  "graph": "4e0085417fe07bd8bb7eb974e7253aaa9604c553f4de0e1b6281cc582e78205d",
+  "nodes": 1,
+  "edges": 0
+ },
+ "standard-fuel-rod": {
+  "text": "53fd68e90a7bdf4020d32b3d1233d6ddd86c3c9ab5de1fa359c156876d3d3193",
+  "graph": "adbbb92be6e59c27a1fcb30c0b833dd50573fa77ad42e2215b504b205701db44",
+  "nodes": 47,
+  "edges": 61
+ },
+ "steam": {
+  "text": "794bb45689ed0e5ffec52b2c420eb8ca533d9e2171090999c46b3f68b51de437",
+  "graph": "a72322114ef8c5076d1e0bdb94bbc3a81ccf38b6ef825feb6bb07f7135f6986c",
+  "nodes": 2,
+  "edges": 1
+ },
+ "steel-coil": {
+  "text": "80d74841008315e2964eb8de66c016bf5669ab899f674eb6108b346060d3d6c3",
+  "graph": "1597c5fd60e4a2a23ec70d030c59a2e14dd227997fa419666c9a107ce6178e6f",
+  "nodes": 10,
+  "edges": 10
+ },
+ "steel-drill-head": {
+  "text": "f146ffbc329591644a103e4e51a514950fa63e3ca39b9cb56515ec8d0fe5ea7d",
+  "graph": "07881cf0a44cfcc5d38e8746cfa767eb1118cb02403466e2ddac6db39b3f18c6",
+  "nodes": 10,
+  "edges": 10
+ },
+ "steel-ingot": {
+  "text": "a7cddfc0063c9780b84429be64c855e48debf77b9d215d9e6d8f983856d202a1",
+  "graph": "4776032091853cbc411d4f8c44c055cc05c65335c7cb151ef73f550245a5bb01",
+  "nodes": 9,
+  "edges": 9
+ },
+ "steel-plate": {
+  "text": "c4615c031741c52063d4e836d4aee211c0b441e4a6c69462214795071dfbe7cb",
+  "graph": "4621d37e1808b538c3b429dcb0f2bd3836ae7fb1e1c66c0daa4555f0aa388af2",
+  "nodes": 10,
+  "edges": 10
+ },
+ "steel-rod": {
+  "text": "128a030faeb6c7e90b868f916697898766ef255877cf9b4370a248ef18fbe057",
+  "graph": "dcf32479c84eb98aa9a6fd73f8d0ce60a42e9bc8bfc3baf0f210b97d50d0994a",
+  "nodes": 11,
+  "edges": 11
+ },
+ "sulfur": {
+  "text": "80515122bafc7abe0bccdb2207ccabbdf8eb447c2ba24f2bdbb792ec05738305",
+  "graph": "78175e2a79e4508f365db6a67435b9b67786f91cecb625d423ffa5de520afc37",
+  "nodes": 6,
+  "edges": 5
+ },
+ "sulfur-dioxide": {
+  "text": "aa66f53eed564c4db7593bb06b20ee9e458916c77ad4e26a377e458f4d7474dc",
+  "graph": "baf22909b0b9cdbdc8539f60181355330051f57cb449133a752cf6d56bb73ce4",
+  "nodes": 7,
+  "edges": 6
+ },
+ "sulfur-trioxide": {
+  "text": "aa6615d3547ccf27dc1d58817e264b845010d550ad25070f21208edcb90af3a9",
+  "graph": "b5e320ea50e083f280a3b7b79f21ab1fbd4fe1a22ae80d37b0575c75535029e9",
+  "nodes": 8,
+  "edges": 7
+ },
+ "sulfuric-acid": {
+  "text": "ff7b7e2fdf4a2a49953af6bba928eb7ac0a8bfa56a5430cf7cb3485619e75690",
+  "graph": "374725a298247563632b7f48ab3189001c264ca456b306d0a41e13304b9683d0",
+  "nodes": 9,
+  "edges": 9
+ },
+ "table-salt": {
+  "text": "afc651c3bf97a18095ed9d3420e1462736b3052ad0a7f66f2bbbadfaf13961c1",
+  "graph": "f92796d7251b2101b56ebdc279dcb08775b023e6f82ef9c398f2f1807a0bc062",
+  "nodes": 3,
+  "edges": 2
+ },
+ "tetraethyllead": {
+  "text": "9eb4d0f9ae5a52e24fc0bcc6c1d8899eea2001e8b062625eecdddd2712a1c389",
+  "graph": "75ecbc43d588073dc886d08e73014f240ff990541268787cdf3b519f9ceb090c",
+  "nodes": 21,
+  "edges": 25
+ },
+ "tire": {
+  "text": "cd5e785f38832fe51bc77847bd5d2c48303fab84b99d45a94830e88b813620aa",
+  "graph": "8c080bc0126237881dfe07628ba4d3ab01e0721c8d5cdba1a6ddf7b7bef4e9aa",
+  "nodes": 31,
+  "edges": 37
+ },
+ "tire-rim": {
+  "text": "58146a44e409d5138e6a7fd3aa52f43ba2df4fdeb26a9e70da4eb850b3e0362b",
+  "graph": "f10895fa06cbb6c2f2cc232d6d857791e55aed004133bfbf2715d0080e4ae6c8",
+  "nodes": 18,
+  "edges": 19
+ },
+ "toy": {
+  "text": "7ca80731d7e48eb70b6225d24386ec5df4939546fefb9cdffc57cde9e25efb73",
+  "graph": "576fafbf1f393231469075f4191d6754eb24ff70726637b1829b18d9fccd1734",
+  "nodes": 7,
+  "edges": 6
+ },
+ "treated-raw-copper": {
+  "text": "754cc383e0e975f63810e6b6532a39ffeb2bd98cc78221b98b25c2062e23f7a2",
+  "graph": "84092268df2fbc6b87b4ed49b5341eead997adc1dd14cfefc5b009aefe2f6c5f",
+  "nodes": 11,
+  "edges": 11
+ },
+ "treated-raw-iron": {
+  "text": "59d4947951bdefde9cc504b3f1654da1b1f47df99a912341de28a5ca6f59fcf0",
+  "graph": "f3d72a6460077d0b78a6e180ef58beffbbaa9c25129edfc6fcab675fbf05aab2",
+  "nodes": 11,
+  "edges": 11
+ },
+ "treated-rock": {
+  "text": "24207f1c12fbea554281efec7d853ff15bd99c3f375e0da9f16d5038d9aa5367",
+  "graph": "23fa6b9bdca5b3d44ddb58066421c03c3ed05c9cf966164edb9aba9513e12752",
+  "nodes": 2,
+  "edges": 1
+ },
+ "tributyl-phosphate": {
+  "text": "7f16451f9b283a77504833b141ff3ff9b18376f06e530e31a0fc63f1e347efb4",
+  "graph": "ac50431947c2f26b183539828ba8111b3048c34912ee18feaa8e5e4c57757aa9",
+  "nodes": 29,
+  "edges": 35
+ },
+ "tungsten-carbide-drill-head": {
+  "text": "9350635069174b0d3197b4ddeaa0a8ad0e8174942a1439437fa7867c48e01cde",
+  "graph": "8018b8b7843670a2fa880794d0c90543bb50b42fe04c1596d0c250b4e0d95dde",
+  "nodes": 10,
+  "edges": 10
+ },
+ "tungsten-carbide-plate": {
+  "text": "020a070a0cc6b0874b606cd2ff2a2b3c236956df69a2bbbc6a2dae44e4f9d02c",
+  "graph": "5e9d1aa05cf8ed0fd9827a74bbe889ae34b099c1cade848ba6944dda6acf7d40",
+  "nodes": 9,
+  "edges": 9
+ },
+ "uncharged-lithium-ion-battery": {
+  "text": "55dd067b9444e68ce6629b472130680213448f8254b8e6e080bfa18b10a1d88c",
+  "graph": "315b5d59ee339299e447b2a9f7eb4c5e52df7dd6a1c246bfff013e4aba7fe385",
+  "nodes": 35,
+  "edges": 44
+ },
+ "unenriched-uf6-gas": {
+  "text": "4bae68a86c3d46303abbd3c446836d0ed58b8e315b3a3284dd6851109fb2691c",
+  "graph": "5ce4865dcbcfc1a171bf98cca309fda1e3d490086458cdae3f7e289de1854be7",
+  "nodes": 21,
+  "edges": 25
+ },
+ "uranium": {
+  "text": "503e5501f4ffc30344eb97401ce89552ae1267ee20dfcccc45119d40587ec75b",
+  "graph": "40b933963250306ae524abef6e24ed44635e1484866d160e1a1a0018d0b07782",
+  "nodes": 1,
+  "edges": 0
+ },
+ "water": {
+  "text": "532f4bb683823b65d702756ebde25ac81e138182612582a719f052e0439bc92c",
+  "graph": "b75c7e776f4d0cebcf07734ee51ea15564bb303995177549ce5cf8709cd9d144",
+  "nodes": 1,
+  "edges": 0
+ },
+ "water-bottle": {
+  "text": "9ad8eed1abe2df2e2e7f045686cb9d6cf634f2279592cf119cf51e7b88935036",
+  "graph": "bd94a2b7ce17dc7df22633ec0f0ab92470dd0126d25344ed0a11736991c1b3b1",
+  "nodes": 25,
+  "edges": 28
+ },
+ "water-free-gas": {
+  "text": "2bb899f7a9645202f7d8d076fe92f696bf4f70fedd83724593c50c5a6c391bde",
+  "graph": "4e586ca25e5a9e27ec81c2c094ee7825b247a3a9982c4eaa5703ea85be78016d",
+  "nodes": 13,
+  "edges": 15
+ },
+ "wet-concrete": {
+  "text": "086799ebd1927d30e8e35c56d917844de431030e1f5c005ca8511079a8d6d184",
+  "graph": "f8b69ff53fe09b037cedbef6a729ac07dbe329d19fc4dcc3f2c5368d132f58e3",
+  "nodes": 9,
+  "edges": 9
+ },
+ "yellowcake": {
+  "text": "7de82a7c08bcecb2f4e26a69360d60e3bc66fd4e1f0279e59d1b3b08b0009988",
+  "graph": "f28120e4a2fd6a3831566efc80c8f5e9a2524451203c87a2dd250828c4f9c71e",
+  "nodes": 18,
+  "edges": 21
+ },
+ "zinc": {
+  "text": "f1d7a148ff49e27240b775b6e53b7ab266e974b8291ab806528f7b4f8508e0e8",
+  "graph": "251d8fbcd76879a9c93cf04c7ec8d6902a6108c131eed55e26dbaac8684a51fa",
+  "nodes": 22,
+  "edges": 26
+ },
+ "zinc-sulfate": {
+  "text": "37df4b419d7c3540ac1cf948a142b19aaa85b0e1fa32976150e4752c9267f28e",
+  "graph": "d17a1d7132634af28da5245bebb15f18b98f1ff6f40cd5067e8f8d6d69d5da0b",
+  "nodes": 21,
+  "edges": 25
+ },
+ "zirconium-chloride": {
+  "text": "79799bfc20ef46e5c1ceb6c99383bf6f9a7af121244637585550e91455d1d52b",
+  "graph": "67d16a450e9ad5e61284266a5a3a25142277b56e2002be636b0bb184bf0219d0",
+  "nodes": 5,
+  "edges": 4
+ },
+ "zirconium-dioxide": {
+  "text": "fff90415579f88bdb70d4c951aee258aece1e9e5bcc38dd7f01e770febd858a0",
+  "graph": "0172dd536343d29c21969e5c1b0740f422693e26129c13b336fe6e096e9cd270",
+  "nodes": 6,
+  "edges": 6
+ },
+ "zirconium-rod": {
+  "text": "3a0292e9a6d56cb7fd8005e66d3b33a68e2deb4a5e8f73e132a6e4535d7ad29e",
+  "graph": "2022b1cbec15b0adeeec0d73ddfd1b3f081a0848299f56c4a6b55bb7cbde41d3",
+  "nodes": 7,
+  "edges": 7
+ }
+}
