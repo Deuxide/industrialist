@@ -319,9 +319,48 @@
         return { incoming, outgoing };
     }
 
+    // Lineage of one node: everything that feeds it (upstream, walking
+    // incoming edges back to raw materials) and everything it feeds
+    // (downstream, walking outgoing edges to the final product). The
+    // selected node itself is included. Returns edge indices too, so the
+    // edges on those paths can be highlighted with the nodes.
+    function computeLineage(graphData, adjacency, nodeId) {
+        const adj = adjacency || buildAdjacency(graphData);
+        const edgeSet = new Set();
+        const upNodes = new Set([nodeId]);
+        const downNodes = new Set([nodeId]);
+
+        function walk(start, neighbours, seen, direction) {
+            const stack = [start];
+            while (stack.length) {
+                const cur = stack.pop();
+                const edgeIdxs = neighbours.get(cur) || [];
+                edgeIdxs.forEach(i => {
+                    const e = graphData.edges[i];
+                    const next = direction === 'up' ? e.from : e.to;
+                    edgeSet.add(i);
+                    if (!seen.has(next)) {
+                        seen.add(next);
+                        stack.push(next);
+                    }
+                });
+            }
+        }
+
+        if (!adj.incoming.has(nodeId)) {
+            return { nodes: new Set(), edges: new Set(), upNodes, downNodes };
+        }
+        walk(nodeId, adj.incoming, upNodes, 'up');
+        walk(nodeId, adj.outgoing, downNodes, 'down');
+
+        const nodes = new Set([...upNodes, ...downNodes]);
+        return { nodes, edges: edgeSet, upNodes, downNodes };
+    }
+
     return {
         NODE_W, NODE_H_MACHINE, NODE_H_LEAF, DEFAULTS,
         nodeSize, buildElkGraph, extractLayout, layoutGraph, setElk,
-        signature, clearCache, roundedPath, labelAnchor, buildAdjacency
+        signature, clearCache, roundedPath, labelAnchor, buildAdjacency,
+        computeLineage
     };
 });
